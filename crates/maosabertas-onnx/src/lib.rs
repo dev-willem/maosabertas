@@ -72,7 +72,7 @@ impl Model {
     /// Recusa NaN: quadro sem referencia (sem ombros) precisa ser tratado
     /// antes, com a mesma regra usada no treino.
     pub fn run(&mut self, features: &[f32]) -> Result<Vec<f32>, Error> {
-        if features.len() % FEATURE_DIM != 0 {
+        if !features.len().is_multiple_of(FEATURE_DIM) {
             return Err(Error::Input(format!(
                 "{} valores nao formam quadros de {FEATURE_DIM}",
                 features.len()
