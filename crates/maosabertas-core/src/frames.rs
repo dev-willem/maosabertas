@@ -29,7 +29,7 @@ impl<'a> Frames<'a> {
 /// Converte indice de quadro em segundos.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct Clock {
-    fps: f64,
+    pub(crate) fps: f64,
     t0: f64,
 }
 

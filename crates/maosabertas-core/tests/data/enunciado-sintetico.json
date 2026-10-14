@@ -1,0 +1,14 @@
+{
+  "spec_version": "0.1",
+  "utterance_id": "sintetico_1",
+  "t_start": 10.0,
+  "t_end": 12.0,
+  "manual": [
+    { "gloss": "A", "kind": "lexical", "t": [10.0, 10.5], "conf": 0.625 },
+    { "gloss": "B", "kind": "lexical", "t": [10.75, 11.25], "conf": 0.875 }
+  ],
+  "nonmanual": [
+    { "tier": "gramatical", "label": "interrogativa-sn", "t": [10.25, 11.25], "conf": 0.84375 }
+  ],
+  "quality": { "frames_ok": 0.75, "face_occluded": 0.125, "fps": 4.0 }
+}

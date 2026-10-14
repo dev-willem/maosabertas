@@ -34,7 +34,11 @@ impl<'v> CtcDecoder<'v> {
         Self::with_clock(vocab, blank, Clock::new(fps, t0)?)
     }
 
-    fn with_clock(vocab: &'v [Token], blank: usize, clock: Clock) -> Result<Self, Error> {
+    pub(crate) fn with_clock(
+        vocab: &'v [Token],
+        blank: usize,
+        clock: Clock,
+    ) -> Result<Self, Error> {
         if blank >= vocab.len() {
             return Err(Error::Blank(blank));
         }
@@ -66,8 +70,22 @@ impl<'v> CtcDecoder<'v> {
     }
 
     /// Fecha o trecho pendente no fim do fluxo.
-    pub fn finish(self) -> Option<ManualItem> {
-        self.run.and_then(|r| self.item(r, self.frame))
+    pub fn finish(mut self) -> Option<ManualItem> {
+        self.cut()
+    }
+
+    /// Fecha o trecho pendente no quadro atual sem encerrar o fluxo: o proximo
+    /// quadro abre trecho novo, mesmo que repita a classe.
+    pub fn cut(&mut self) -> Option<ManualItem> {
+        self.run.take().and_then(|r| self.item(r, self.frame))
+    }
+
+    /// Quadros seguidos, ate o atual, em que o branco venceu. Zera no corte.
+    pub(crate) fn blank_run(&self) -> usize {
+        match self.run {
+            Some((class, first, _)) if class == self.blank => self.frame - first,
+            _ => 0,
+        }
     }
 
     fn item(&self, (class, first, sum): (usize, usize, f64), end: usize) -> Option<ManualItem> {
@@ -228,6 +246,40 @@ mod tests {
             ("A", [0.0, 0.5])
         );
         assert_eq!(d.finish().map(|m| m.gloss), Some("B".into()));
+    }
+
+    #[test]
+    fn corte_fecha_o_trecho_sem_encerrar_o_fluxo() {
+        let vocab = vocab();
+        let mut d = CtcDecoder::new(&vocab, 0, 4.0, 0.0).unwrap();
+        d.push(&[frame(1, 0.75), frame(1, 0.5)].concat()).unwrap();
+        let cortado = d.cut().unwrap();
+        assert_eq!(
+            (cortado.gloss.as_str(), cortado.t, cortado.conf),
+            ("A", [0.0, 0.5], 0.625)
+        );
+        assert_eq!(d.cut(), None);
+        // A mesma classe depois do corte abre item novo, no relogio do fluxo.
+        assert!(d.push(&frame(1, 0.75)).unwrap().is_empty());
+        assert_eq!(d.cut().map(|m| m.t), Some([0.5, 0.75]));
+        d.push(&frame(0, 0.75)).unwrap();
+        assert_eq!(d.cut(), None);
+        assert_eq!(d.finish(), None);
+    }
+
+    #[test]
+    fn conta_brancos_seguidos_ate_o_corte() {
+        let vocab = vocab();
+        let mut d = CtcDecoder::new(&vocab, 0, 4.0, 0.0).unwrap();
+        assert_eq!(d.blank_run(), 0);
+        d.push(&[frame(0, 0.75), frame(0, 0.75)].concat()).unwrap();
+        assert_eq!(d.blank_run(), 2);
+        d.push(&frame(1, 0.75)).unwrap();
+        assert_eq!(d.blank_run(), 0);
+        d.push(&frame(0, 0.75)).unwrap();
+        assert_eq!(d.blank_run(), 1);
+        d.cut();
+        assert_eq!(d.blank_run(), 0);
     }
 
     #[test]

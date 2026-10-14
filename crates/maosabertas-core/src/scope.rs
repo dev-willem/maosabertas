@@ -45,7 +45,7 @@ impl<'l> ScopeSegmenter<'l> {
         Self::with_clock(labels, h, Clock::new(fps, t0)?)
     }
 
-    fn with_clock(
+    pub(crate) fn with_clock(
         labels: &'l [(Tier, NonManualLabel)],
         h: Hysteresis,
         clock: Clock,
@@ -89,15 +89,23 @@ impl<'l> ScopeSegmenter<'l> {
     }
 
     /// Fecha os marcadores abertos no fim do fluxo.
-    pub fn finish(self) -> Vec<NonManualItem> {
-        let mut items: Vec<_> = self
-            .open
-            .iter()
-            .enumerate()
-            .filter_map(|(class, o)| {
-                o.and_then(|(first, sum)| self.item(class, first, self.frame, sum))
-            })
-            .collect();
+    pub fn finish(mut self) -> Vec<NonManualItem> {
+        self.cut()
+    }
+
+    /// Fecha no quadro atual os marcadores abertos e os reabre ali mesmo: o
+    /// trecho seguinte continua o marcador, com `conf` propria, sem precisar
+    /// passar de novo pela entrada da histerese.
+    /// shortcut: `min_frames` vale por trecho, entao a ponta curta de um
+    /// marcador longo cortado se perde; rever quando houver calibracao.
+    pub fn cut(&mut self) -> Vec<NonManualItem> {
+        let mut items = Vec::new();
+        for class in 0..self.open.len() {
+            if let Some((first, sum)) = self.open[class] {
+                items.extend(self.item(class, first, self.frame, sum));
+                self.open[class] = Some((self.frame, 0.0));
+            }
+        }
         sort(&mut items);
         items
     }
@@ -133,7 +141,7 @@ pub fn segment(
 }
 
 /// Por inicio e, no empate, por fim.
-fn sort(items: &mut [NonManualItem]) {
+pub(crate) fn sort(items: &mut [NonManualItem]) {
     items.sort_by(|a, b| a.t[0].total_cmp(&b.t[0]).then(a.t[1].total_cmp(&b.t[1])));
 }
 
@@ -233,6 +241,31 @@ mod tests {
         let fechados = s.push(&[0.0, 0.0]).unwrap();
         assert_eq!(fechados.len(), 1);
         assert_eq!(fechados[0].t, [0.0, 0.5]);
+        assert!(s.finish().is_empty());
+    }
+
+    #[test]
+    fn corte_fecha_e_reabre_o_marcador() {
+        let labels = labels();
+        let mut s = ScopeSegmenter::new(&labels, H, 4.0, 0.0).unwrap();
+        s.push(&[1.0, 0.0, 1.0, 0.0]).unwrap();
+        let cortados = s.cut();
+        assert_eq!(cortados.len(), 1);
+        assert_eq!((cortados[0].t, cortados[0].conf), ([0.0, 0.5], 1.0));
+        // Entre a saida e a entrada: so continua porque o corte reabriu.
+        s.push(&[0.625, 0.0, 0.625, 0.0]).unwrap();
+        let resto = s.finish();
+        assert_eq!(resto.len(), 1);
+        assert_eq!((resto[0].t, resto[0].conf), ([0.5, 1.0], 0.625));
+    }
+
+    #[test]
+    fn corte_sem_quadro_novo_nao_gera_trecho_vazio() {
+        let labels = labels();
+        let mut s = ScopeSegmenter::new(&labels, H, 4.0, 0.0).unwrap();
+        s.push(&[1.0, 0.0, 1.0, 0.0]).unwrap();
+        assert_eq!(s.cut().len(), 1);
+        assert!(s.cut().is_empty());
         assert!(s.finish().is_empty());
     }
 

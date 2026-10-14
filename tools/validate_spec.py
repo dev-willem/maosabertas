@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Valida os exemplos de spec/examples contra spec/utterance.schema.json."""
+"""Valida spec/examples e os JSON de teste em crates/*/tests/data contra o schema."""
 import json
 import pathlib
 import sys
@@ -20,21 +20,24 @@ def main() -> int:
     if not files:
         print("nenhum exemplo encontrado", file=sys.stderr)
         return 1
+    # Enunciados de referencia dos testes: o JSON que o codigo gera.
+    files += sorted(ROOT.glob("crates/*/tests/data/*.json"))
 
     failed = 0
     for path in files:
+        name = path.relative_to(ROOT).as_posix()
         doc = json.loads(path.read_text(encoding="utf-8"))
         errors = sorted(validator.iter_errors(doc), key=lambda e: list(e.path))
         if errors:
             failed += 1
-            print(f"FALHOU  {path.name}")
+            print(f"FALHOU  {name}")
             for err in errors:
                 where = "/".join(str(p) for p in err.path) or "(raiz)"
                 print(f"        {where}: {err.message}")
         else:
-            print(f"ok      {path.name}")
+            print(f"ok      {name}")
 
-    print(f"\n{len(files) - failed}/{len(files)} exemplos validos")
+    print(f"\n{len(files) - failed}/{len(files)} documentos validos")
     return 1 if failed else 0
 
 

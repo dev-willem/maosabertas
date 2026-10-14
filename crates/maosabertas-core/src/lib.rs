@@ -8,6 +8,7 @@ mod ctc;
 mod features;
 mod frames;
 mod scope;
+mod transcriber;
 
 pub use ctc::{greedy_decode, CtcDecoder, Token};
 pub use features::{
@@ -16,6 +17,7 @@ pub use features::{
 };
 pub use frames::Frames;
 pub use scope::{segment, Hysteresis, ScopeSegmenter};
+pub use transcriber::{Ending, FrameQuality, Transcriber};
 
 use maosabertas_protocol::{ManualItem, NonManualItem, Span, Utterance, SPEC_VERSION};
 use std::fmt;
@@ -68,6 +70,13 @@ pub enum Error {
     },
     /// Proporcao largura / altura da imagem invalida.
     Aspect(f32),
+    /// Pausa ou duracao maxima que nao e numero finito e positivo.
+    Ending(Ending),
+    /// Blocos do mesmo trecho com numero de quadros diferente.
+    FrameCount {
+        expected: usize,
+        got: usize,
+    },
 }
 
 impl fmt::Display for Error {
@@ -95,6 +104,14 @@ impl fmt::Display for Error {
                 got,
             } => write!(f, "{part}: esperados {expected} valores, recebidos {got}"),
             Error::Aspect(v) => write!(f, "proporcao da imagem invalida: {v}"),
+            Error::Ending(e) => write!(
+                f,
+                "fechamento invalido: pausa ({}) e duracao maxima ({}) precisam ser finitas e positivas",
+                e.pause, e.max_duration
+            ),
+            Error::FrameCount { expected, got } => {
+                write!(f, "esperados {expected} quadros, recebidos {got}")
+            }
         }
     }
 }
