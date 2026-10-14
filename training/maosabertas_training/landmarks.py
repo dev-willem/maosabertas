@@ -18,6 +18,7 @@ Arrays do .npz (T quadros; NaN onde nada foi detectado):
     blendshapes       (T, 52)
     pose              (T, 33, 4)   x, y, z, visibilidade
     blendshape_names  (52,)        vazio se nenhum rosto foi detectado
+    size              (2,)         largura e altura da imagem, em pixels
 
 Esquerda e direita sao as do HolisticLandmarker; ainda nao foi conferido com
 gravacao real se correspondem as maos de quem sinaliza.
@@ -108,6 +109,7 @@ def extract(frames: Iterable[tuple[float, np.ndarray]], model: Path) -> dict[str
     times: list[float] = []
     rows: list[dict[str, np.ndarray]] = []
     names: list[str] = []
+    size = (0, 0)
     last_ms = -1
     with vision.HolisticLandmarker.create_from_options(options) as landmarker:
         try:
@@ -121,6 +123,7 @@ def extract(frames: Iterable[tuple[float, np.ndarray]], model: Path) -> dict[str
                     names = [c.category_name for c in ordered]
                 times.append(t)
                 rows.append(frame_arrays(result))
+                size = (rgb.shape[1], rgb.shape[0])
         except KeyboardInterrupt:
             pass
 
@@ -130,6 +133,7 @@ def extract(frames: Iterable[tuple[float, np.ndarray]], model: Path) -> dict[str
     }
     data["t"] = np.asarray(times, np.float64)
     data["blendshape_names"] = np.asarray(names, dtype=str)
+    data["size"] = np.asarray(size, np.int32)
     return data
 
 

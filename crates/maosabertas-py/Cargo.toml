@@ -1,0 +1,17 @@
+[package]
+name = "maosabertas-py"
+description = "Bindings Python do nucleo Maos Abertas, para o treino usar o mesmo codigo do tempo real"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+# pyo3 0.29 exige 1.83; o resto do workspace continua em 1.75.
+rust-version = "1.83"
+
+[lib]
+name = "maosabertas"
+crate-type = ["cdylib"]
+
+[dependencies]
+maosabertas-core = { path = "../maosabertas-core" }
+pyo3 = "0.29"

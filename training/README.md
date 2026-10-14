@@ -9,11 +9,16 @@ núcleo em Rust.
 uv venv && uv pip install -e ".[dev]"
 ```
 
-Só para extrair landmarks, sem PyTorch:
+Só para extrair landmarks e calcular features, sem PyTorch:
 
 ```bash
-uv venv && uv pip install mediapipe opencv-python numpy pytest ruff
+uv venv && uv pip install mediapipe opencv-python numpy pytest ruff ../crates/maosabertas-py
 ```
+
+O último pacote compila o núcleo em Rust (precisa de `cargo`). No Windows
+com pyenv, o pyo3 não acha o interpretador pelos shims: exporte
+`PYO3_PYTHON` com o caminho do `python.exe` do venv antes de rodar `cargo`
+no workspace.
 
 ## Extração de landmarks
 
@@ -27,6 +32,14 @@ pose numa passada). O modelo é baixado uma vez para `~/.cache/maosabertas`
 (ou `MAOSABERTAS_MODELS`). A saída é recusada se cair dentro do
 repositório. O formato dos arrays está no docstring de
 `maosabertas_training/landmarks.py`.
+
+## Features
+
+`maosabertas_training.features.features(np.load("saida.npz"))` devolve
+`(T, 203)`: coordenadas centradas nos ombros e escaladas pela largura
+deles, mais blendshapes. O cálculo é o do núcleo em Rust
+(`crates/maosabertas-core/src/features.rs`), o mesmo do tempo real.
+Quadro sem ombros sai como NaN.
 
 ## Regras
 

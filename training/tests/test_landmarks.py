@@ -78,3 +78,4 @@ def test_video_sintetico_ponta_a_ponta(tmp_path, model):
     assert data["left_hand"].shape == (5, 21, 3)
     assert np.isnan(data["face"]).all()  # quadro preto: nada detectado
     assert data["blendshape_names"].shape == (0,)
+    assert data["size"].tolist() == [64, 48]

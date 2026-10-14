@@ -1,0 +1,14 @@
+[build-system]
+requires = ["maturin>=1.15,<2"]
+build-backend = "maturin"
+
+[project]
+name = "maosabertas"
+description = "Bindings Python do nucleo Maos Abertas"
+requires-python = ">=3.11"
+license = "Apache-2.0"
+dynamic = ["version"]
+
+[tool.maturin]
+# So no build do modulo: assim `cargo test` e `cargo clippy` no workspace linkam normalmente.
+features = ["pyo3/extension-module"]

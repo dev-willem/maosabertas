@@ -1,13 +1,19 @@
-//! Nucleo de tempo real: das probabilidades por quadro aos itens do protocolo.
+//! Nucleo de tempo real: dos landmarks as features e das probabilidades por
+//! quadro aos itens do protocolo.
 //!
 //! Nada aqui conhece glosas nem rotulos de Libras: o vocabulario e os
 //! rotulos chegam de quem chama, junto com o modelo.
 
 mod ctc;
+mod features;
 mod frames;
 mod scope;
 
 pub use ctc::{greedy_decode, CtcDecoder, Token};
+pub use features::{
+    frame_features, FrameLandmarks, BLENDSHAPE_VALUES, FACE_VALUES, FEATURE_DIM, HAND_VALUES,
+    POSE_VALUES,
+};
 pub use frames::Frames;
 pub use scope::{segment, Hysteresis, ScopeSegmenter};
 
@@ -54,6 +60,14 @@ pub enum Error {
         enter: f32,
         exit: f32,
     },
+    /// Parte dos landmarks com numero de valores diferente do esperado.
+    Landmarks {
+        part: &'static str,
+        expected: usize,
+        got: usize,
+    },
+    /// Proporcao largura / altura da imagem invalida.
+    Aspect(f32),
 }
 
 impl fmt::Display for Error {
@@ -75,6 +89,12 @@ impl fmt::Display for Error {
                     "histerese invalida: exige 0 <= saida ({exit}) <= entrada ({enter}) <= 1"
                 )
             }
+            Error::Landmarks {
+                part,
+                expected,
+                got,
+            } => write!(f, "{part}: esperados {expected} valores, recebidos {got}"),
+            Error::Aspect(v) => write!(f, "proporcao da imagem invalida: {v}"),
         }
     }
 }
