@@ -30,6 +30,23 @@ jobs:
       - run: cargo clippy --all-targets -- -D warnings
       - run: cargo test --all
 
+  training:
+    name: Python (treino)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: training
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: sudo apt-get update && sudo apt-get install -y libgl1 libglib2.0-0
+      - run: pip install mediapipe opencv-python numpy pytest ruff
+      - run: ruff check .
+      - run: ruff format --check .
+      - run: pytest -q
+
   sem-dados-pessoais:
     name: Nenhum dado pessoal no commit
     runs-on: ubuntu-latest
@@ -38,7 +55,7 @@ jobs:
       - name: Recusar vídeo, landmarks e modelos
         run: |
           set -e
-          encontrados=$(git ls-files | grep -Ei '\.(mp4|mov|avi|webm|npz|parquet|onnx|pt|pth|tflite)$' || true)
+          encontrados=$(git ls-files | grep -Ei '\.(mp4|mov|avi|webm|npz|parquet|onnx|pt|pth|tflite|task)$' || true)
           if [ -n "$encontrados" ]; then
             echo "Arquivos proibidos no repositório (ver CONTRIBUTING.md):"
             echo "$encontrados"

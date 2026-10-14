@@ -15,6 +15,7 @@ landmarks/
 *.pt
 *.pth
 *.tflite
+*.task
 models/
 
 # Rust

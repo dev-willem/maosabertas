@@ -9,6 +9,25 @@ núcleo em Rust.
 uv venv && uv pip install -e ".[dev]"
 ```
 
+Só para extrair landmarks, sem PyTorch:
+
+```bash
+uv venv && uv pip install mediapipe opencv-python numpy pytest ruff
+```
+
+## Extração de landmarks
+
+```bash
+python -m maosabertas_training.landmarks video.mp4 ~/dados/saida.npz
+python -m maosabertas_training.landmarks 0 ~/dados/saida.npz   # câmera; Ctrl+C encerra
+```
+
+Usa o `HolisticLandmarker` do MediaPipe (mãos, rosto com blendshapes e
+pose numa passada). O modelo é baixado uma vez para `~/.cache/maosabertas`
+(ou `MAOSABERTAS_MODELS`). A saída é recusada se cair dentro do
+repositório. O formato dos arrays está no docstring de
+`maosabertas_training/landmarks.py`.
+
 ## Regras
 
 - **Nenhum dado entra no repositório.** Caminhos de dados vêm de variável
