@@ -85,3 +85,24 @@ def test_dataset_recusa_nan_formato_errado_e_clipe_curto(x, labels):
     with pytest.raises(ValueError):
         ClipDataset([Clip(Path("c.npz"), "s", labels)], lambda p: x)
     ClipDataset([Clip(Path("c.npz"), "s", (1, 1))], lambda p: np.zeros((3, FEATURE_DIM)))
+
+
+def test_loader_real_le_npz_de_landmarks(tmp_path):
+    from maosabertas_training.landmarks import SHAPES
+    from maosabertas_training.train import _features_loader
+
+    # Landmarks sinteticos: ombros nos 2 primeiros quadros, nada nos 2 ultimos.
+    data = {k: np.full((4, *shape), np.nan, np.float32) for k, shape in SHAPES.items()}
+    data["pose"][:2] = 0.5
+    data["pose"][:2, 11, 0] = 0.75
+    data["pose"][:2, 12, 0] = 0.25
+    data["t"] = np.arange(4, dtype=np.float64)
+    data["size"] = np.array([640, 480], np.int32)
+    path = tmp_path / "clip.npz"
+    np.savez(path, **data)
+
+    feats = _features_loader(max_gap=1)(path)
+    assert feats.shape == (4, FEATURE_DIM)
+    assert not np.isnan(feats).any()
+    np.testing.assert_array_equal(feats[2], feats[1])  # lacuna curta repete
+    assert (feats[3] == 0).all()  # alem de max_gap, zera
