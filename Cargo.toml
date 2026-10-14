@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/maosabertas-protocol"]
+members = ["crates/maosabertas-protocol", "crates/maosabertas-core"]
 
 [workspace.package]
 version = "0.1.0"

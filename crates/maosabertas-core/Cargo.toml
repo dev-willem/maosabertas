@@ -1,0 +1,11 @@
+[package]
+name = "maosabertas-core"
+description = "Nucleo de tempo real do Maos Abertas: das probabilidades por quadro aos itens do protocolo"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+maosabertas-protocol = { path = "../maosabertas-protocol" }
