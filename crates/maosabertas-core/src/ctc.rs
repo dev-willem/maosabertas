@@ -1,3 +1,4 @@
+use crate::frames::{check, Clock};
 use crate::{Error, Frames};
 use maosabertas_protocol::{ManualItem, ManualKind};
 
@@ -8,67 +9,105 @@ pub struct Token {
     pub kind: ManualKind,
 }
 
-/// Decodificacao CTC gulosa: argmax por quadro, junta repeticoes, descarta o branco.
+/// Decodificacao CTC gulosa em fluxo: argmax por quadro, junta repeticoes,
+/// descarta o branco. Recebe blocos de quadros conforme chegam e devolve so
+/// os itens que ja fecharam; o ultimo fica pendente ate o proximo bloco.
 ///
 /// `conf` e a media da probabilidade vencedora nos quadros do item.
 /// shortcut: o intervalo e o dos quadros do pico CTC, nao a fronteira real
 /// do sinal; trocar por alinhamento quando houver modelo treinado.
 /// shortcut: `alt` sai vazio; preencher com beam search quando a traducao precisar.
+#[derive(Debug, Clone)]
+pub struct CtcDecoder<'v> {
+    vocab: &'v [Token],
+    blank: usize,
+    clock: Clock,
+    /// Indice do proximo quadro.
+    frame: usize,
+    /// Trecho corrente: (classe, primeiro quadro, soma das probabilidades).
+    run: Option<(usize, usize, f64)>,
+}
+
+impl<'v> CtcDecoder<'v> {
+    /// `t0` e o instante do primeiro quadro, em segundos desde o inicio da sessao.
+    pub fn new(vocab: &'v [Token], blank: usize, fps: f64, t0: f64) -> Result<Self, Error> {
+        Self::with_clock(vocab, blank, Clock::new(fps, t0)?)
+    }
+
+    fn with_clock(vocab: &'v [Token], blank: usize, clock: Clock) -> Result<Self, Error> {
+        if blank >= vocab.len() {
+            return Err(Error::Blank(blank));
+        }
+        Ok(Self {
+            vocab,
+            blank,
+            clock,
+            frame: 0,
+            run: None,
+        })
+    }
+
+    /// Recebe quadros em linha (quadro x classe). Bloco invalido nao altera o estado.
+    pub fn push(&mut self, probs: &[f32]) -> Result<Vec<ManualItem>, Error> {
+        check(probs, self.vocab.len())?;
+        let mut items = Vec::new();
+        for row in probs.chunks_exact(self.vocab.len()) {
+            let (best, p) = argmax(row);
+            self.run = match self.run {
+                Some((class, first, sum)) if class == best => Some((class, first, sum + p)),
+                prev => {
+                    items.extend(prev.and_then(|r| self.item(r, self.frame)));
+                    Some((best, self.frame, p))
+                }
+            };
+            self.frame += 1;
+        }
+        Ok(items)
+    }
+
+    /// Fecha o trecho pendente no fim do fluxo.
+    pub fn finish(self) -> Option<ManualItem> {
+        self.run.and_then(|r| self.item(r, self.frame))
+    }
+
+    fn item(&self, (class, first, sum): (usize, usize, f64), end: usize) -> Option<ManualItem> {
+        (class != self.blank).then(|| ManualItem {
+            gloss: self.vocab[class].gloss.clone(),
+            kind: self.vocab[class].kind,
+            param: None,
+            t: self.clock.span(first, end),
+            conf: sum / (end - first) as f64,
+            alt: Vec::new(),
+        })
+    }
+}
+
+/// Decodifica uma janela inteira de uma vez. Ver [`CtcDecoder`].
 pub fn greedy_decode(
     frames: &Frames,
     vocab: &[Token],
     blank: usize,
 ) -> Result<Vec<ManualItem>, Error> {
-    if vocab.len() != frames.classes() {
+    if vocab.len() != frames.classes {
         return Err(Error::Classes {
-            expected: frames.classes(),
+            expected: frames.classes,
             got: vocab.len(),
         });
     }
-    if blank >= vocab.len() {
-        return Err(Error::Blank(blank));
-    }
-
-    let mut items = Vec::new();
-    // Trecho corrente: (classe, primeiro quadro, soma das probabilidades).
-    let mut run: Option<(usize, usize, f64)> = None;
-    let mut emit = |(class, first, sum): (usize, usize, f64), end: usize| {
-        if class != blank {
-            items.push(ManualItem {
-                gloss: vocab[class].gloss.clone(),
-                kind: vocab[class].kind,
-                param: None,
-                t: frames.span(first, end),
-                conf: sum / (end - first) as f64,
-                alt: Vec::new(),
-            });
-        }
-    };
-
-    for (i, row) in frames.rows().enumerate() {
-        let (best, p) = argmax(row);
-        match &mut run {
-            Some((class, _, sum)) if *class == best => *sum += f64::from(p),
-            _ => {
-                if let Some(r) = run.take() {
-                    emit(r, i);
-                }
-                run = Some((best, i, f64::from(p)));
-            }
-        }
-    }
-    if let Some(r) = run {
-        emit(r, frames.count());
-    }
+    let mut d = CtcDecoder::with_clock(vocab, blank, frames.clock)?;
+    let mut items = d.push(frames.probs)?;
+    items.extend(d.finish());
     Ok(items)
 }
 
-/// Em empate vence a primeira classe.
-fn argmax(row: &[f32]) -> (usize, f32) {
-    row.iter().copied().enumerate().fold(
-        (0, row[0]),
-        |best, (i, p)| if p > best.1 { (i, p) } else { best },
-    )
+/// Em empate vence a primeira classe. Devolve a probabilidade ja em `f64`.
+fn argmax(row: &[f32]) -> (usize, f64) {
+    let (i, p) =
+        row.iter().copied().enumerate().fold(
+            (0, row[0]),
+            |best, (i, p)| if p > best.1 { (i, p) } else { best },
+        );
+    (i, f64::from(p))
 }
 
 #[cfg(test)]
@@ -146,5 +185,58 @@ mod tests {
             }
         );
         assert_eq!(greedy_decode(&f, &vocab(), 3).unwrap_err(), Error::Blank(3));
+    }
+
+    const SEQ: [(usize, f32); 7] = [
+        (1, 0.75),
+        (1, 0.5),
+        (0, 0.875),
+        (1, 0.75),
+        (2, 0.5),
+        (2, 1.0),
+        (0, 0.75),
+    ];
+
+    #[test]
+    fn fluxo_em_blocos_da_o_mesmo_que_lote() {
+        let probs: Vec<f32> = SEQ.iter().flat_map(|&(c, p)| frame(c, p)).collect();
+        let lote = decode(&SEQ, 4.0, 1.0);
+        let vocab = vocab();
+        for tamanho in 1..=SEQ.len() {
+            let mut d = CtcDecoder::new(&vocab, 0, 4.0, 1.0).unwrap();
+            let mut out = Vec::new();
+            for bloco in probs.chunks(tamanho * 3) {
+                out.extend(d.push(bloco).unwrap());
+            }
+            out.extend(d.finish());
+            assert_eq!(out, lote, "blocos de {tamanho} quadros");
+        }
+    }
+
+    #[test]
+    fn item_so_sai_quando_fecha() {
+        let vocab = vocab();
+        let mut d = CtcDecoder::new(&vocab, 0, 4.0, 0.0).unwrap();
+        assert!(d
+            .push(&[frame(1, 0.75), frame(1, 0.75)].concat())
+            .unwrap()
+            .is_empty());
+        let fechados = d.push(&frame(2, 0.75)).unwrap();
+        assert_eq!(fechados.len(), 1);
+        assert_eq!(
+            (fechados[0].gloss.as_str(), fechados[0].t),
+            ("A", [0.0, 0.5])
+        );
+        assert_eq!(d.finish().map(|m| m.gloss), Some("B".into()));
+    }
+
+    #[test]
+    fn bloco_invalido_nao_altera_estado() {
+        let vocab = vocab();
+        let mut d = CtcDecoder::new(&vocab, 0, 4.0, 0.0).unwrap();
+        d.push(&frame(1, 0.75)).unwrap();
+        assert!(d.push(&[0.5, 0.5]).is_err());
+        assert!(d.push(&[0.5, 2.0, 0.5]).is_err());
+        assert_eq!(d.finish().map(|m| m.t), Some([0.0, 0.25]));
     }
 }

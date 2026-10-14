@@ -4,57 +4,44 @@ use maosabertas_protocol::Span;
 /// Probabilidades por quadro em linha (quadro x classe), como saem do tensor ONNX.
 #[derive(Debug, Clone, Copy)]
 pub struct Frames<'a> {
-    probs: &'a [f32],
-    classes: usize,
-    fps: f64,
-    t0: f64,
+    pub(crate) probs: &'a [f32],
+    pub(crate) classes: usize,
+    pub(crate) clock: Clock,
 }
 
 impl<'a> Frames<'a> {
     /// `t0` e o instante do primeiro quadro, em segundos desde o inicio da sessao.
     pub fn new(probs: &'a [f32], classes: usize, fps: f64, t0: f64) -> Result<Self, Error> {
-        if classes == 0 || probs.len() % classes != 0 {
-            return Err(Error::Shape {
-                len: probs.len(),
-                classes,
-            });
-        }
+        check(probs, classes)?;
+        Ok(Self {
+            probs,
+            classes,
+            clock: Clock::new(fps, t0)?,
+        })
+    }
+
+    /// Intervalo coberto por todos os quadros.
+    pub fn window(&self) -> Span {
+        self.clock.span(0, self.probs.len() / self.classes)
+    }
+}
+
+/// Converte indice de quadro em segundos.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct Clock {
+    fps: f64,
+    t0: f64,
+}
+
+impl Clock {
+    pub(crate) fn new(fps: f64, t0: f64) -> Result<Self, Error> {
         if !(fps.is_finite() && fps > 0.0) {
             return Err(Error::Fps(fps));
         }
         if !(t0.is_finite() && t0 >= 0.0) {
             return Err(Error::Start(t0));
         }
-        if let Some(&p) = probs.iter().find(|p| !(0.0..=1.0).contains(*p)) {
-            return Err(Error::Probability(p));
-        }
-        Ok(Self {
-            probs,
-            classes,
-            fps,
-            t0,
-        })
-    }
-
-    /// Intervalo coberto por todos os quadros.
-    pub fn window(&self) -> Span {
-        self.span(0, self.count())
-    }
-
-    pub(crate) fn classes(&self) -> usize {
-        self.classes
-    }
-
-    pub(crate) fn count(&self) -> usize {
-        self.probs.len() / self.classes
-    }
-
-    pub(crate) fn rows(&self) -> impl Iterator<Item = &'a [f32]> {
-        self.probs.chunks_exact(self.classes)
-    }
-
-    pub(crate) fn column(&self, class: usize) -> impl Iterator<Item = f32> + 'a {
-        self.probs.iter().skip(class).step_by(self.classes).copied()
+        Ok(Self { fps, t0 })
     }
 
     /// Intervalo dos quadros `first..end` (fim exclusivo).
@@ -63,6 +50,20 @@ impl<'a> Frames<'a> {
             self.t0 + first as f64 / self.fps,
             self.t0 + end as f64 / self.fps,
         ]
+    }
+}
+
+/// Valida um bloco de quadros: formato e valores em `[0, 1]`.
+pub(crate) fn check(probs: &[f32], classes: usize) -> Result<(), Error> {
+    if classes == 0 || probs.len() % classes != 0 {
+        return Err(Error::Shape {
+            len: probs.len(),
+            classes,
+        });
+    }
+    match probs.iter().find(|p| !(0.0..=1.0).contains(*p)) {
+        Some(&p) => Err(Error::Probability(p)),
+        None => Ok(()),
     }
 }
 
@@ -94,11 +95,9 @@ mod tests {
     }
 
     #[test]
-    fn coluna_e_intervalo() {
+    fn janela_e_intervalo() {
         let f = Frames::new(&[0.1, 0.9, 0.2, 0.8, 0.3, 0.7], 2, 4.0, 2.0).unwrap();
-        assert_eq!(f.count(), 3);
-        assert_eq!(f.column(1).collect::<Vec<_>>(), vec![0.9, 0.8, 0.7]);
-        assert_eq!(f.span(1, 3), [2.25, 2.75]);
+        assert_eq!(f.clock.span(1, 3), [2.25, 2.75]);
         assert_eq!(f.window(), [2.0, 2.75]);
     }
 }

@@ -7,9 +7,9 @@ mod ctc;
 mod frames;
 mod scope;
 
-pub use ctc::{greedy_decode, Token};
+pub use ctc::{greedy_decode, CtcDecoder, Token};
 pub use frames::Frames;
-pub use scope::{segment, Hysteresis};
+pub use scope::{segment, Hysteresis, ScopeSegmenter};
 
 use maosabertas_protocol::{ManualItem, NonManualItem, Span, Utterance, SPEC_VERSION};
 use std::fmt;
