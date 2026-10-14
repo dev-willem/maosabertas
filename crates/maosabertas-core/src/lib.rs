@@ -11,7 +11,27 @@ pub use ctc::{greedy_decode, Token};
 pub use frames::Frames;
 pub use scope::{segment, Hysteresis};
 
+use maosabertas_protocol::{ManualItem, NonManualItem, Span, Utterance, SPEC_VERSION};
 use std::fmt;
+
+/// Monta o enunciado de uma janela. Sai sem `translation`: quem traduz e outra camada.
+pub fn utterance(
+    id: impl Into<String>,
+    window: Span,
+    manual: Vec<ManualItem>,
+    nonmanual: Vec<NonManualItem>,
+) -> Utterance {
+    Utterance {
+        spec_version: SPEC_VERSION.into(),
+        utterance_id: id.into(),
+        t_start: window[0],
+        t_end: window[1],
+        manual,
+        nonmanual,
+        quality: None,
+        translation: None,
+    }
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Error {

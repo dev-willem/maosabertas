@@ -9,3 +9,6 @@ rust-version.workspace = true
 
 [dependencies]
 maosabertas-protocol = { path = "../maosabertas-protocol" }
+
+[dev-dependencies]
+serde_json = { workspace = true }

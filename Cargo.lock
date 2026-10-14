@@ -13,6 +13,7 @@ name = "maosabertas-core"
 version = "0.1.0"
 dependencies = [
  "maosabertas-protocol",
+ "serde_json",
 ]
 
 [[package]]

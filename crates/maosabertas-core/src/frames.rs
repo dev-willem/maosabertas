@@ -36,6 +36,11 @@ impl<'a> Frames<'a> {
         })
     }
 
+    /// Intervalo coberto por todos os quadros.
+    pub fn window(&self) -> Span {
+        self.span(0, self.count())
+    }
+
     pub(crate) fn classes(&self) -> usize {
         self.classes
     }
@@ -94,5 +99,6 @@ mod tests {
         assert_eq!(f.count(), 3);
         assert_eq!(f.column(1).collect::<Vec<_>>(), vec![0.9, 0.8, 0.7]);
         assert_eq!(f.span(1, 3), [2.25, 2.75]);
+        assert_eq!(f.window(), [2.0, 2.75]);
     }
 }
