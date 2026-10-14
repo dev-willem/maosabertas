@@ -53,7 +53,7 @@ descartados de propósito (ver `docs/adr/0001`).
 
 ```
 spec/       protocolo: JSON Schema, exemplos, notação, CHANGELOG
-crates/     maosabertas-protocol (tipos) e, depois, -core, -wasm, -server, -py
+crates/     maosabertas-protocol (tipos), -core, -py, -onnx e, depois, -wasm, -server
 training/   Python: treino e exportação para ONNX
 tools/      scripts de dados e anotação
 docs/adr/   decisões de arquitetura

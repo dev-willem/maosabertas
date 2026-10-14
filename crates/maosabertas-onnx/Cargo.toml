@@ -1,0 +1,16 @@
+[package]
+name = "maosabertas-onnx"
+description = "Inferencia ONNX do Maos Abertas: features por quadro para probabilidades por quadro"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+# ort 2.0.0-rc.14 exige 1.92; o resto do workspace continua em 1.75.
+rust-version = "1.92"
+
+[dependencies]
+maosabertas-core = { path = "../maosabertas-core" }
+ort = { version = "=2.0.0-rc.14", default-features = false, features = ["std", "download-binaries", "tls-native", "copy-dylibs"] }
+
+[dev-dependencies]
+maosabertas-protocol = { path = "../maosabertas-protocol" }

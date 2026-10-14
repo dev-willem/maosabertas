@@ -4,6 +4,7 @@ members = [
   "crates/maosabertas-protocol",
   "crates/maosabertas-core",
   "crates/maosabertas-py",
+  "crates/maosabertas-onnx",
 ]
 
 [workspace.package]
