@@ -1,0 +1,16 @@
+{
+  "spec_version": "0.1",
+  "utterance_id": "ex_001",
+  "t_start": 0.0,
+  "t_end": 1.8,
+  "manual": [
+    { "gloss": "QUEIJO", "kind": "lexical", "t": [0.0, 0.52], "conf": 0.93 },
+    { "gloss": "RATO", "kind": "lexical", "t": [0.56, 1.08], "conf": 0.89, "alt": ["CAMUNDONGO"] },
+    { "gloss": "COMER", "kind": "lexical", "t": [1.12, 1.80], "conf": 0.91 }
+  ],
+  "nonmanual": [
+    { "tier": "gramatical", "label": "neutra", "t": [0.0, 1.8], "conf": 0.88 }
+  ],
+  "quality": { "frames_ok": 0.97, "face_occluded": 0.03, "fps": 29.8 },
+  "translation": { "pt": "O rato comeu o queijo.", "conf": 0.9 }
+}

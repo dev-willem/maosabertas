@@ -1,0 +1,9 @@
+# Revisão obrigatória por área.
+# Substitua pelos usuários reais ao criar a organização.
+
+/spec/                    @maosabertas/linguistica @maosabertas/mantenedores
+/docs/adr/                @maosabertas/mantenedores
+/crates/                  @maosabertas/mantenedores
+/training/                @maosabertas/ml
+/.github/                 @maosabertas/mantenedores
+/LICENSE /NOTICE /TRADEMARKS.md  @maosabertas/mantenedores

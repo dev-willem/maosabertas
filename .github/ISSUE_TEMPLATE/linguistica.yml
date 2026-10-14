@@ -1,0 +1,15 @@
+name: Questão linguística
+description: Glosa, classificador, expressão facial ou guia de anotação
+labels: [linguistica]
+body:
+  - type: textarea
+    attributes:
+      label: Questão
+    validations: { required: true }
+  - type: input
+    attributes:
+      label: Variante regional envolvida
+  - type: textarea
+    attributes:
+      label: Fonte ou referência
+      description: Publicação, dicionário ou quem consultou. Não anexe vídeo de pessoas.

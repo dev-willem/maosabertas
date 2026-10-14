@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  spec:
+    name: Validar especificação
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install jsonschema
+      - run: python3 tools/validate_spec.py
+
+  rust:
+    name: Rust
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fmt --all -- --check
+      - run: cargo clippy --all-targets -- -D warnings
+      - run: cargo test --all
+
+  sem-dados-pessoais:
+    name: Nenhum dado pessoal no commit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Recusar vídeo, landmarks e modelos
+        run: |
+          set -e
+          encontrados=$(git ls-files | grep -Ei '\.(mp4|mov|avi|webm|npz|parquet|onnx|pt|pth|tflite)$' || true)
+          if [ -n "$encontrados" ]; then
+            echo "Arquivos proibidos no repositório (ver CONTRIBUTING.md):"
+            echo "$encontrados"
+            exit 1
+          fi
+          echo "ok"

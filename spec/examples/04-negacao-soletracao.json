@@ -1,0 +1,19 @@
+{
+  "spec_version": "0.1",
+  "utterance_id": "ex_004",
+  "t_start": 3.0,
+  "t_end": 5.4,
+  "manual": [
+    { "gloss": "d-a-n-i-e-l", "kind": "fingerspelling", "t": [3.0, 4.1], "conf": 0.72 },
+    { "gloss": "CHEGAR", "kind": "lexical", "t": [4.2, 5.4], "conf": 0.84 }
+  ],
+  "nonmanual": [
+    { "tier": "cabeca", "label": "negacao", "t": [4.2, 5.4], "conf": 0.81 }
+  ],
+  "quality": { "frames_ok": 0.9, "face_occluded": 0.1, "fps": 28.4 },
+  "translation": {
+    "pt": "O Daniel nao chegou.",
+    "conf": 0.78,
+    "ambiguidade": ["soletracao com confianca baixa"]
+  }
+}

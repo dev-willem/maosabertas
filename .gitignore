@@ -1,0 +1,49 @@
+# Dados pessoais: NUNCA versionar (LGPD)
+*.mp4
+*.mov
+*.avi
+*.webm
+*.npz
+*.parquet
+data/
+corpus/
+gravacoes/
+landmarks/
+
+# Modelos
+*.onnx
+*.pt
+*.pth
+*.tflite
+models/
+
+# Rust
+target/
+**/*.rs.bk
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.ruff_cache/
+.pytest_cache/
+dist/
+*.egg-info/
+
+# ML
+mlruns/
+wandb/
+.dvc/cache/
+
+# Node
+node_modules/
+web/dist/
+
+# Ambiente
+.env
+.env.*
+!.env.example
+.DS_Store
+.idea/
+.vscode/

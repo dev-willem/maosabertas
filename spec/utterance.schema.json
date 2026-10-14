@@ -1,0 +1,141 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://maosabertas.org/spec/0.1/utterance.schema.json",
+  "title": "Enunciado em Libras",
+  "description": "Transcricao de um enunciado em Libras: trilhas manuais e nao manuais alinhadas no tempo. Glosa e notacao, nao traducao.",
+  "type": "object",
+  "required": ["spec_version", "utterance_id", "t_start", "t_end", "manual"],
+  "additionalProperties": false,
+  "properties": {
+    "spec_version": {
+      "description": "Versao da especificacao que este documento segue.",
+      "type": "string",
+      "const": "0.1"
+    },
+    "utterance_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "t_start": {
+      "description": "Inicio do enunciado, em segundos desde o inicio da sessao.",
+      "type": "number",
+      "minimum": 0
+    },
+    "t_end": {
+      "type": "number",
+      "minimum": 0
+    },
+    "manual": {
+      "description": "Sinais e classificadores, em ordem de inicio. Pode ser vazio quando so ha marcacao nao manual.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/manualItem" }
+    },
+    "nonmanual": {
+      "description": "Marcadores nao manuais com escopo temporal proprio. Nunca presos a um sinal.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/nonmanualItem" }
+    },
+    "quality": { "$ref": "#/$defs/quality" },
+    "translation": { "$ref": "#/$defs/translation" }
+  },
+  "$defs": {
+    "span": {
+      "description": "Intervalo [inicio, fim] em segundos.",
+      "type": "array",
+      "items": { "type": "number", "minimum": 0 },
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "manualItem": {
+      "type": "object",
+      "required": ["gloss", "t", "conf"],
+      "additionalProperties": false,
+      "properties": {
+        "gloss": {
+          "description": "Glosa em maiusculas, soletracao em minusculas separada por hifen, ou CL-* para classificador.",
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "type": "string",
+          "enum": ["lexical", "classifier", "fingerspelling", "pointing"],
+          "default": "lexical"
+        },
+        "param": {
+          "description": "Parametros do classificador ou da apontacao. Chaves livres nesta versao.",
+          "type": "object"
+        },
+        "t": { "$ref": "#/$defs/span" },
+        "conf": { "$ref": "#/$defs/confidence" },
+        "alt": {
+          "description": "Alternativas plausiveis, em ordem decrescente de probabilidade. Usadas pela camada de traducao.",
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "nonmanualItem": {
+      "type": "object",
+      "required": ["tier", "label", "t", "conf"],
+      "additionalProperties": false,
+      "properties": {
+        "tier": {
+          "description": "Funcao do marcador. Gramatical muda o tipo da frase; afetiva muda o tom.",
+          "type": "string",
+          "enum": ["gramatical", "afetiva", "intensidade", "cabeca", "olhar"]
+        },
+        "label": {
+          "description": "Rotulo do marcador. O conjunto fechado desta versao esta em spec/README.md e so muda com nova versao.",
+          "type": "string",
+          "enum": [
+            "neutra",
+            "interrogativa-sn",
+            "interrogativa-qu",
+            "negacao",
+            "afirmacao",
+            "duvida",
+            "alegria",
+            "tristeza",
+            "susto",
+            "baixa",
+            "media",
+            "alta"
+          ]
+        },
+        "t": { "$ref": "#/$defs/span" },
+        "conf": { "$ref": "#/$defs/confidence" }
+      }
+    },
+    "quality": {
+      "description": "Condicoes da captura. Serve para filtrar amostras no retreino e avisar o usuario.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "frames_ok": { "type": "number", "minimum": 0, "maximum": 1 },
+        "face_occluded": { "type": "number", "minimum": 0, "maximum": 1 },
+        "fps": { "type": "number", "minimum": 0 }
+      }
+    },
+    "translation": {
+      "description": "Saida da camada de traducao. Ausente enquanto o enunciado nao fechou.",
+      "type": "object",
+      "required": ["pt", "conf"],
+      "additionalProperties": false,
+      "properties": {
+        "pt": { "type": "string" },
+        "conf": { "$ref": "#/$defs/confidence" },
+        "ambiguidade": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "alternativa": { "type": "string" },
+        "model": { "type": "string" }
+      }
+    }
+  }
+}

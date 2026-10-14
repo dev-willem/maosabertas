@@ -1,0 +1,11 @@
+{
+  "spec_version": "0.1",
+  "utterance_id": "ex_005",
+  "t_start": 20.0,
+  "t_end": 20.9,
+  "manual": [
+    { "gloss": "AJUDAR", "kind": "lexical", "t": [20.0, 20.9], "conf": 0.55, "alt": ["APOIAR", "CUIDAR"] }
+  ],
+  "nonmanual": [],
+  "quality": { "frames_ok": 0.71, "face_occluded": 0.29, "fps": 24.2 }
+}

@@ -1,0 +1,21 @@
+name: Mudança na especificação
+description: Proposta de alteração do protocolo em spec/
+labels: [spec]
+body:
+  - type: textarea
+    attributes:
+      label: Mudança proposta
+    validations: { required: true }
+  - type: textarea
+    attributes:
+      label: Por que o schema atual não resolve
+    validations: { required: true }
+  - type: dropdown
+    attributes:
+      label: Quebra compatibilidade?
+      options: ["Não", "Sim", "Não sei"]
+    validations: { required: true }
+  - type: textarea
+    attributes:
+      label: Revisão linguística
+      description: Quem da comunidade surda ou da linguística revisou ou precisa revisar?

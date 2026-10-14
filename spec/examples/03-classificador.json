@@ -1,0 +1,28 @@
+{
+  "spec_version": "0.1",
+  "utterance_id": "ex_003",
+  "t_start": 12.4,
+  "t_end": 14.22,
+  "manual": [
+    { "gloss": "CARRO", "kind": "lexical", "t": [12.4, 12.88], "conf": 0.91, "alt": ["ONIBUS"] },
+    {
+      "gloss": "CL-VEICULO",
+      "kind": "classifier",
+      "param": { "movimento": "reto", "plano": "horizontal" },
+      "t": [12.9, 13.52],
+      "conf": 0.68
+    },
+    {
+      "gloss": "CL-VEICULO",
+      "kind": "classifier",
+      "param": { "movimento": "queda", "plano": "vertical" },
+      "t": [13.55, 14.22],
+      "conf": 0.64
+    }
+  ],
+  "nonmanual": [
+    { "tier": "afetiva", "label": "susto", "t": [13.4, 14.22], "conf": 0.77 },
+    { "tier": "intensidade", "label": "alta", "t": [13.55, 14.22], "conf": 0.7 }
+  ],
+  "quality": { "frames_ok": 0.94, "face_occluded": 0.06, "fps": 29.1 }
+}
