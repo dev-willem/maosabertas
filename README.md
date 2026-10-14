@@ -12,6 +12,10 @@ e tradução para o português.
 > intérprete de Libras, nem em contextos médicos, jurídicos ou de
 > emergência.
 
+## Como usar
+
+Como rodar, como treinar e o que falta: [docs/GUIA.md](docs/GUIA.md).
+
 ## Objetivo
 
 Um **protocolo aberto** (formato de transcrição versionado) e um **núcleo
