@@ -48,6 +48,48 @@ os seguintes, e os anteriores ao primeiro quadro válido, viram zeros. O
 tempo real usa a mesma regra; o `max_gap` do treino precisa acompanhar o
 modelo exportado.
 
+## Treino
+
+```bash
+python -m maosabertas_training.train --manifest ~/dados/corpus.csv \
+    --vocab ~/dados/vocab.txt --out ~/experimentos/base-01
+```
+
+Divide os clipes por sinalizante (`--test-fraction` dos sinalizantes vai
+para o teste, sorteio fixado por `--seed`), treina o modelo manual com CTC,
+exporta `model.onnx` no contrato do runtime (ADR-005), confere o contrato,
+compara ONNX Runtime e PyTorch (diferença máxima `1e-5`) e avalia o arquivo
+exportado nos sinalizantes de teste. Config, sinalizantes de cada lado,
+loss por época, vocabulário e métricas vão para `experiment.json` no
+diretório de saída, e para o MLflow se estiver instalado (sem
+`MLFLOW_TRACKING_URI`, em `mlruns/` dentro do diretório de saída). A saída
+é recusada se cair dentro do repositório. Outros hiperparâmetros:
+`--epochs`, `--batch-size`, `--lr`, `--hidden`, `--layers` e `--max-gap`
+(lacuna preenchida por `fill_gaps`; use o mesmo valor no tempo real).
+
+Métricas: taxa de erro de glosa (distância de edição / tamanho da
+referência) no agregado e por sinalizante; por glosa, acertos,
+substituições e omissões (contados na glosa da referência) e inserções
+(na glosa inserida).
+
+O modelo (`model.py`) é causal: lookahead de 0 quadros, campo receptivo de
+`1 + 2 (2^L - 1)` quadros com `L` camadas. Ver
+`docs/adr/0008-treino-base.md`.
+
+**Manifesto:** CSV UTF-8 com cabeçalho `clip,signer,glosses`. `clip` é o
+`.npz` da extração (absoluto ou relativo ao manifesto), `signer` é o id do
+sinalizante (pseudônimo, nunca o nome) e `glosses` são as glosas do clipe
+separadas por espaço, na ordem sinalizada.
+
+```csv
+clip,signer,glosses
+s01/0001.npz,s01,GLOSA1 GLOSA2
+```
+
+**Vocabulário:** texto UTF-8, uma glosa por linha. A classe 0 é o branco
+do CTC; a glosa da linha `i` (sem contar linhas vazias) é a classe `i`.
+Glosa do manifesto fora do vocabulário é erro, com linha e glosa.
+
 ## Regras
 
 - **Nenhum dado entra no repositório.** Caminhos de dados vêm de variável
