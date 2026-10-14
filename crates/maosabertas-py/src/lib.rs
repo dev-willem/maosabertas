@@ -66,9 +66,27 @@ fn features<'py>(
     Ok(PyBytes::new(py, &out))
 }
 
+/// Regra do nucleo para quadros sem referencia (`maosabertas_core::fill_gaps`)
+/// sobre a saida de `features`: T x FEATURE_DIM, linha NaN = quadro sem
+/// referencia. Devolve o mesmo formato, sem NaN.
+#[pyfunction]
+fn fill_gaps<'py>(
+    py: Python<'py>,
+    features: &[u8],
+    max_gap: usize,
+) -> PyResult<Bound<'py, PyBytes>> {
+    let frames = features.len() / (FEATURE_DIM * 4);
+    let feats = floats("features", features, FEATURE_DIM, frames)?;
+    let out = maosabertas_core::fill_gaps(&feats, max_gap)
+        .map_err(|e| PyValueError::new_err(e.to_string()))?;
+    let out: Vec<u8> = out.iter().flat_map(|v| v.to_le_bytes()).collect();
+    Ok(PyBytes::new(py, &out))
+}
+
 #[pymodule]
 fn maosabertas(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(features, m)?)?;
+    m.add_function(wrap_pyfunction!(fill_gaps, m)?)?;
     m.add("FEATURE_DIM", FEATURE_DIM)?;
     Ok(())
 }

@@ -7,6 +7,7 @@
 mod ctc;
 mod features;
 mod frames;
+mod gaps;
 mod scope;
 mod transcriber;
 
@@ -16,6 +17,7 @@ pub use features::{
     POSE_VALUES,
 };
 pub use frames::Frames;
+pub use gaps::{fill_gaps, GapFiller};
 pub use scope::{segment, Hysteresis, ScopeSegmenter};
 pub use transcriber::{Ending, FrameQuality, Transcriber};
 

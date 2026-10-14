@@ -41,3 +41,22 @@ def test_formato_errado_falha_no_rust():
     data["face"] = data["face"][:, :100]
     with pytest.raises(ValueError, match="face"):
         ft.features(data)
+
+
+def test_fill_gaps_repete_ate_max_gap_e_depois_zera():
+    a = np.full(ft.FEATURE_DIM, 0.25, np.float32)
+    b = np.full(ft.FEATURE_DIM, 0.5, np.float32)
+    nan = np.full(ft.FEATURE_DIM, np.nan, np.float32)
+    zero = np.zeros(ft.FEATURE_DIM, np.float32)
+    feats = np.stack([nan, a, nan, nan, b])
+
+    out = ft.fill_gaps(feats, 1)
+    assert out.dtype == np.float32
+    np.testing.assert_array_equal(out, np.stack([zero, a, a, zero, b]))
+    assert np.isnan(feats).any()  # entrada intacta
+
+
+def test_fill_gaps_sem_quadros_e_formato_errado():
+    assert ft.fill_gaps(np.empty((0, ft.FEATURE_DIM), np.float32), 3).shape == (0, ft.FEATURE_DIM)
+    with pytest.raises(ValueError, match="FEATURE_DIM"):
+        ft.fill_gaps(np.zeros((ft.FEATURE_DIM, 2), np.float32), 1)

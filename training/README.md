@@ -41,6 +41,13 @@ deles, mais blendshapes. O cálculo é o do núcleo em Rust
 (`crates/maosabertas-core/src/features.rs`), o mesmo do tempo real.
 Quadro sem ombros sai como NaN.
 
+Antes de entrar no modelo, `fill_gaps(feats, max_gap)` tira os NaN com a
+regra do núcleo (`crates/maosabertas-core/src/gaps.rs`, ADR-006): os
+primeiros `max_gap` quadros de uma lacuna repetem o último quadro válido;
+os seguintes, e os anteriores ao primeiro quadro válido, viram zeros. O
+tempo real usa a mesma regra; o `max_gap` do treino precisa acompanhar o
+modelo exportado.
+
 ## Regras
 
 - **Nenhum dado entra no repositório.** Caminhos de dados vêm de variável

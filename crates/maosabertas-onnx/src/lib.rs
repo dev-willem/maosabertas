@@ -69,8 +69,9 @@ impl Model {
 
     /// `features`: T quadros em linha (T x FEATURE_DIM). Devolve T x C.
     ///
-    /// Recusa NaN: quadro sem referencia (sem ombros) precisa ser tratado
-    /// antes, com a mesma regra usada no treino.
+    /// Recusa NaN: quadro sem referencia (sem ombros) precisa passar antes por
+    /// [`maosabertas_core::GapFiller`], com o mesmo `max_gap` do treino
+    /// (`maosabertas_core::fill_gaps`, ADR-006).
     pub fn run(&mut self, features: &[f32]) -> Result<Vec<f32>, Error> {
         if !features.len().is_multiple_of(FEATURE_DIM) {
             return Err(Error::Input(format!(
