@@ -103,7 +103,7 @@ Glosa do manifesto fora do vocabulário é erro, com linha e glosa.
 ## Ordem sugerida
 
 1. Extração de landmarks e blendshapes com MediaPipe.
-2. Baseline de sinais isolados (MINDS-Libras ou V-LIBRASIL).
+2. Baseline de sinais isolados, numa base pública.
 3. Classificador facial, primeiro por regras, depois treinado.
 4. Reconhecimento contínuo com CTC.
 

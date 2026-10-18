@@ -48,7 +48,7 @@ docs/       decisões (ADRs) e guias
 - **Código:** [Apache-2.0](LICENSE). Mantenha o aviso de copyright e o
   [NOTICE](NOTICE) ao redistribuir.
 - **Nome e selo:** veja [TRADEMARKS.md](TRADEMARKS.md).
-- **Especificação:** CC BY 4.0 (quando publicada).
+- **Especificação:** [CC BY 4.0](spec/LICENSE).
 - **Modelos e dados:** termos próprios, definidos por modelo e por corpus.
 
 Se você usa o Mãos Abertas em um produto, agradecemos o selo
