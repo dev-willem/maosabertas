@@ -1,10 +1,16 @@
 """Extrai landmarks de maos, rosto (com blendshapes) e pose, quadro a quadro.
 
 Uso:
-    python -m maosabertas_training.landmarks ENTRADA SAIDA.npz
+    python -m maosabertas_training.landmarks ENTRADA SAIDA.npz [--recorte X0,Y0,X1,Y1]
 
 ENTRADA e um arquivo de video ou o indice de uma camera (por exemplo, 0).
 Ctrl+C encerra a captura e grava o que ja foi extraido.
+
+--recorte: so a regiao do sinalizante passa pelo MediaPipe (video com interprete
+no canto). Cantos superior esquerdo e inferior direito, em fracoes da largura e da
+altura do quadro (0 a 1): 0.5,0.5,1,1 e o quarto inferior direito. Com recorte, os
+landmarks saem normalizados no recorte, nao no quadro inteiro, e `size` e o tamanho
+do recorte (as features usam a razao largura/altura dele).
 
 Landmarks de rosto e maos sao dado biometrico (LGPD): a saida precisa ficar
 fora do repositorio, e o script recusa caminho dentro dele. Nenhum video e
@@ -18,7 +24,7 @@ Arrays do .npz (T quadros; NaN onde nada foi detectado):
     blendshapes       (T, 52)
     pose              (T, 33, 4)   x, y, z, visibilidade
     blendshape_names  (52,)        vazio se nenhum rosto foi detectado
-    size              (2,)         largura e altura da imagem, em pixels
+    size              (2,)         largura e altura da imagem (ou do recorte), em pixels
 
 Esquerda e direita sao as do HolisticLandmarker; ainda nao foi conferido com
 gravacao real se correspondem as maos de quem sinaliza.
@@ -96,9 +102,8 @@ def frame_arrays(result) -> dict[str, np.ndarray]:
     }
 
 
-def extract(frames: Iterable[tuple[float, np.ndarray]], model: Path) -> dict[str, np.ndarray]:
-    """`frames`: pares (segundos, imagem RGB uint8). Ctrl+C encerra e devolve o parcial."""
-    import mediapipe as mp
+def holistic(model: Path):
+    """HolisticLandmarker em modo VIDEO, com blendshapes (as features usam)."""
     from mediapipe.tasks.python import BaseOptions, vision
 
     options = vision.HolisticLandmarkerOptions(
@@ -106,12 +111,19 @@ def extract(frames: Iterable[tuple[float, np.ndarray]], model: Path) -> dict[str
         running_mode=vision.RunningMode.VIDEO,
         output_face_blendshapes=True,
     )
+    return vision.HolisticLandmarker.create_from_options(options)
+
+
+def extract(frames: Iterable[tuple[float, np.ndarray]], model: Path) -> dict[str, np.ndarray]:
+    """`frames`: pares (segundos, imagem RGB uint8). Ctrl+C encerra e devolve o parcial."""
+    import mediapipe as mp
+
     times: list[float] = []
     rows: list[dict[str, np.ndarray]] = []
     names: list[str] = []
     size = (0, 0)
     last_ms = -1
-    with vision.HolisticLandmarker.create_from_options(options) as landmarker:
+    with holistic(model) as landmarker:
         try:
             for t, rgb in frames:
                 # O modo VIDEO exige instantes estritamente crescentes, em ms inteiros.
@@ -163,17 +175,58 @@ def read_frames(source: str) -> Iterator[tuple[float, np.ndarray]]:
         cap.release()
 
 
+Crop = tuple[float, float, float, float]  # x0, y0, x1, y1 em fracoes do quadro
+
+
+def parse_crop(text: str) -> Crop:
+    """Le "x0,y0,x1,y1" em fracoes da largura e da altura, com 0 <= x0 < x1 <= 1 e idem em y."""
+    try:
+        box = tuple(float(v) for v in text.split(","))
+    except ValueError:
+        box = ()
+    if len(box) != 4:
+        raise argparse.ArgumentTypeError(f"esperado x0,y0,x1,y1, recebido {text!r}")
+    x0, y0, x1, y1 = box
+    if not (0 <= x0 < x1 <= 1 and 0 <= y0 < y1 <= 1):  # NaN tambem cai aqui
+        raise argparse.ArgumentTypeError(
+            f"recorte {text!r}: precisa de 0 <= x0 < x1 <= 1 e 0 <= y0 < y1 <= 1"
+        )
+    return box
+
+
+def crop(
+    frames: Iterable[tuple[float, np.ndarray]], box: Crop
+) -> Iterator[tuple[float, np.ndarray]]:
+    """Recorta cada quadro em `box` (fracoes, ver `parse_crop`) antes do MediaPipe."""
+    x0, y0, x1, y1 = box
+    for t, rgb in frames:
+        h, w = rgb.shape[:2]
+        out = rgb[round(y0 * h) : round(y1 * h), round(x0 * w) : round(x1 * w)]
+        if not out.size:
+            raise ValueError(f"recorte {box} vazio num quadro de {w}x{h} pixels")
+        yield t, out
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("entrada", help="arquivo de video ou indice da camera")
     parser.add_argument("saida", type=Path, help="arquivo .npz fora do repositorio")
+    parser.add_argument(
+        "--recorte",
+        type=parse_crop,
+        metavar="X0,Y0,X1,Y1",
+        help="regiao do sinalizante, em fracoes da largura e da altura (0 a 1)",
+    )
     args = parser.parse_args(argv)
 
     try:
         out = check_output(args.saida)
     except ValueError as e:
         parser.error(str(e))
-    data = extract(read_frames(args.entrada), model_path())
+    frames = read_frames(args.entrada)
+    if args.recorte:
+        frames = crop(frames, args.recorte)
+    data = extract(frames, model_path())
     np.savez_compressed(out, **data)
 
     n = len(data["t"])
