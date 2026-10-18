@@ -89,7 +89,7 @@ $env:GLOG_minloglevel = "2"
 ```
 
 - Abre uma janela espelhada com os traços do MediaPipe: mãos (azul é a
-  esquerda, laranja é a direita, nos nomes do MediaPipe), tronco e contornos
+  esquerda, laranja é a direita de quem sinaliza; conferido), tronco e contornos
   do rosto. Embaixo aparecem as glosas reconhecidas e, acima delas, as 3
   classes mais prováveis no quadro atual.
 - **Aula:** à esquerda fica a lista de sinais do modelo, com o que você já
@@ -311,8 +311,8 @@ Na câmera, o teste é a ferramenta Python da seção 3.
 
 ### Depende de pessoas, dados ou decisão
 
-- [ ] Confirmar que esquerda e direita não estão trocadas. Na câmera (seção
-      3), levante só a mão esquerda: ela precisa ficar azul.
+- [x] Confirmar que esquerda e direita não estão trocadas (conferido na
+      câmera em 2026-10-18).
 - [ ] Aprovar dependências: `onnxscript` (exportador ONNX novo do PyTorch; o
       atual está descontinuado) e `Pillow` (acentos na tela da câmera).
 - [ ] Tipo de cada glosa (lexical, classificador...) no registro do treino,

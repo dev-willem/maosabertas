@@ -45,7 +45,7 @@ SHOULDER_W = (0.24, 0.40)
 TARGET = (0.45, 0.315)
 
 WINDOW = "Maos Abertas"
-# BGR. Esquerda e direita sao as do MediaPipe (os lados ainda nao foram conferidos).
+# BGR. Esquerda e direita de quem sinaliza (conferido na camera em 2026-10-18).
 HANDS = {"left_hand": (255, 128, 0), "right_hand": (0, 160, 255)}
 # Pontos da pose do quadril para cima: as pernas ficam fora do quadro.
 BODY = 25

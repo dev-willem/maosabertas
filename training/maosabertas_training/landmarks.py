@@ -26,8 +26,8 @@ Arrays do .npz (T quadros; NaN onde nada foi detectado):
     blendshape_names  (52,)        vazio se nenhum rosto foi detectado
     size              (2,)         largura e altura da imagem (ou do recorte), em pixels
 
-Esquerda e direita sao as do HolisticLandmarker; ainda nao foi conferido com
-gravacao real se correspondem as maos de quem sinaliza.
+Esquerda e direita sao as do HolisticLandmarker e correspondem as maos de quem
+sinaliza (conferido na camera em 2026-10-18).
 """
 
 from __future__ import annotations
