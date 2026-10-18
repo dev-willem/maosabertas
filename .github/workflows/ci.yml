@@ -47,7 +47,11 @@ jobs:
           python-version: "3.12"
       - uses: dtolnay/rust-toolchain@stable
       - run: sudo apt-get update && sudo apt-get install -y libgl1 libglib2.0-0
-      - run: pip install mediapipe opencv-python numpy pytest ruff ../crates/maosabertas-py
+      # As dependencias de training/pyproject.toml; torch so de CPU, para nao baixar CUDA.
+      - run: >-
+          pip install --extra-index-url https://download.pytorch.org/whl/cpu
+          numpy torch onnx onnxruntime mediapipe opencv-python polars scikit-learn jsonschema
+          pytest ruff ../crates/maosabertas-py
       - run: ruff check .
       - run: ruff format --check .
       - run: pytest -q
@@ -60,7 +64,8 @@ jobs:
       - name: Recusar vídeo, landmarks e modelos
         run: |
           set -e
-          encontrados=$(git ls-files | grep -Ei '\.(mp4|mov|avi|webm|npz|parquet|onnx|pt|pth|tflite|task)$' || true)
+          # Imagens tambem: captura de tela da camera tem rosto. Diagramas vao em SVG.
+          encontrados=$(git ls-files | grep -Ei '\.(mp4|mov|avi|webm|npz|parquet|onnx|pt|pth|tflite|task|png|jpe?g|bmp|webp|heic)$' || true)
           if [ -n "$encontrados" ]; then
             echo "Arquivos proibidos no repositório (ver CONTRIBUTING.md):"
             echo "$encontrados"

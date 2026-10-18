@@ -9,6 +9,13 @@ data/
 corpus/
 gravacoes/
 landmarks/
+# Capturas de tela da camera mostram rosto
+*.png
+*.jpg
+*.jpeg
+*.bmp
+*.webp
+*.heic
 
 # Modelos
 *.onnx
