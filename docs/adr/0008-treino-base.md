@@ -47,3 +47,8 @@ desempenho.
   sair ou quando `onnxscript` for aprovado.
 - Arquitetura, tamanho e hiperparâmetros padrão são ponto de partida, sem
   medição.
+- O padding causal replica o primeiro quadro (Pad `edge` no ONNX), em vez de
+  zeros. Com zeros, o começo do clipe era uma borda detectável e o CTC
+  aprendia a emitir a glosa no quadro 0 (experimento 001, registrado fora do
+  repositório). No fluxo, o começo de uma janela
+  equivale a "o primeiro quadro estava parado desde sempre".

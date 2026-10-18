@@ -72,6 +72,35 @@ def test_seed_muda_a_divisao():
     assert len(tests) > 1
 
 
+def test_sinalizante_so_de_treino_nunca_vai_para_o_teste():
+    clips = _clips(5) + [cp.Clip(Path("n_0.npz"), "n01", (2,))]
+    for seed in range(10):
+        train, test = cp.split_by_signer(clips, 0.5, seed, train_only={"n01"})
+        assert "n01" in {c.signer for c in train}
+        assert "n01" not in {c.signer for c in test}
+        assert len({c.signer for c in test}) == 2  # round(0,5 * 5) do resto
+    assert cp.split_by_signer(clips, 0.5, 3, train_only={"n01"}) == cp.split_by_signer(
+        clips, 0.5, 3, train_only={"n01"}
+    )
+
+
+def test_juntar_manifestos_une_vocabularios(tmp_path):
+    (tmp_path / "a").mkdir()
+    (tmp_path / "b").mkdir()
+    ma = _write(tmp_path / "a" / "m.csv", "clip,signer,glosses\nx.npz,s1,AMARELO\ny.npz,s2,BALA\n")
+    va = _write(tmp_path / "a" / "v.txt", "AMARELO\nBALA\n")
+    mb = _write(tmp_path / "b" / "m.csv", "clip,signer,glosses\nz.npz,n01,ÁGUA AMARELO\n")
+    vb = _write(tmp_path / "b" / "v.txt", "ÁGUA\nAMARELO\n")
+    manifest, vocab_path = cp.merge_manifests([(ma, va), (mb, vb)], tmp_path / "junto")
+    vocab = cp.read_vocab(vocab_path)
+    assert vocab == [cp.BLANK, "AMARELO", "BALA", "ÁGUA"]
+    assert cp.read_manifest(manifest, vocab) == [
+        cp.Clip((tmp_path / "a" / "x.npz").resolve(), "s1", (1,)),
+        cp.Clip((tmp_path / "a" / "y.npz").resolve(), "s2", (2,)),
+        cp.Clip((tmp_path / "b" / "z.npz").resolve(), "n01", (3, 1)),
+    ]
+
+
 def test_divisao_precisa_de_dois_sinalizantes():
     with pytest.raises(ValueError, match="2 sinalizantes"):
         cp.split_by_signer(_clips(1), 0.5, seed=0)

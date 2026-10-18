@@ -67,6 +67,20 @@ def test_treino_ponta_a_ponta(tmp_path):
     assert set(rec["metrics"]["by_gloss"]) == set(GLOSSES)
 
 
+def test_validacao_por_sinalizante_escolhe_a_melhor_epoca(tmp_path):
+    data = _corpus(tmp_path)
+    out = tmp_path / "saida"
+    args = [*_args(tmp_path, out), "--val-fraction", "0.34", "--schedule", "cosseno"]
+    assert main(args, load=lambda p: data[p.name]) == 0
+
+    rec = json.loads((out / "experiment.json").read_text(encoding="utf-8"))
+    train, val, test = (set(rec[k]) for k in ("train_signers", "val_signers", "test_signers"))
+    assert len(val) == 1 and val.isdisjoint(train | test)
+    assert len(rec["val_ger"]) == 15
+    # Primeira epoca de menor erro, contada a partir de 1.
+    assert rec["best_epoch"] == int(np.argmin(rec["val_ger"])) + 1
+
+
 def test_saida_no_repositorio_e_recusada(tmp_path):
     data = _corpus(tmp_path)
     with pytest.raises(SystemExit):

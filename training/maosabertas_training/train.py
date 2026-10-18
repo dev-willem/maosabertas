@@ -12,6 +12,7 @@ instalado). DIR precisa ficar fora do repositorio.
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 import os
 from collections.abc import Callable
@@ -80,9 +81,20 @@ def collate(batch):
     )
 
 
-def fit(model: nn.Module, data: ClipDataset, epochs: int, batch_size: int, lr: float, seed: int):
-    """Treina com CTC (branco = 0). Devolve a loss media de cada epoca.
+def fit(
+    model: nn.Module,
+    data: ClipDataset,
+    epochs: int,
+    batch_size: int,
+    lr: float,
+    seed: int,
+    schedule: str = "constante",
+    score: Callable[[nn.Module], float] | None = None,
+) -> tuple[list[float], list[float]]:
+    """Treina com CTC (branco = 0). Devolve a loss media e o `score` de cada epoca.
 
+    `schedule`: "constante" ou "cosseno" (lr decai ate 0 na ultima epoca). Com `score`
+    (erro na validacao), o modelo termina com os pesos da primeira epoca de menor erro.
     O padding a direita do lote nao contamina os quadros validos porque o modelo e causal.
     """
     loader = DataLoader(
@@ -92,9 +104,16 @@ def fit(model: nn.Module, data: ClipDataset, epochs: int, batch_size: int, lr: f
         collate_fn=collate,
         generator=torch.Generator().manual_seed(seed),
     )
+    # Com o branco dominando, parte do gradiente do CTC vira subnormal e o backward da
+    # convolucao fica de 5 a 15 vezes mais lento na CPU. Zerar subnormais nao muda a loss.
+    torch.set_flush_denormal(True)
     opt = torch.optim.Adam(model.parameters(), lr)
+    sched = (
+        torch.optim.lr_scheduler.CosineAnnealingLR(opt, epochs) if schedule == "cosseno" else None
+    )
     ctc = nn.CTCLoss(blank=0)
-    losses = []
+    losses, scores = [], []
+    best = None
     model.train()
     for _ in range(epochs):
         total = 0.0
@@ -106,7 +125,16 @@ def fit(model: nn.Module, data: ClipDataset, epochs: int, batch_size: int, lr: f
             opt.step()
             total += loss.item() * len(x_len)
         losses.append(total / len(data))
-    return losses
+        if sched:
+            sched.step()
+        if score:
+            scores.append(score(model))
+            model.train()
+            if scores[-1] < min(scores[:-1], default=float("inf")):
+                best = copy.deepcopy(model.state_dict())
+    if best is not None:
+        model.load_state_dict(best)
+    return losses, scores
 
 
 def log_experiment(out: Path, record: dict) -> None:
@@ -119,6 +147,9 @@ def log_experiment(out: Path, record: dict) -> None:
         return
     if "MLFLOW_TRACKING_URI" not in os.environ:
         # Sem destino configurado, o registro fica junto da saida, fora do repositorio.
+        # shortcut: o MLflow 3.x recusa o backend em pasta sem este opt-out; trocar por sqlite
+        # (com artifact_location em `out`) quando ele deixar de existir.
+        os.environ.setdefault("MLFLOW_ALLOW_FILE_STORE", "true")
         mlflow.set_tracking_uri((out / "mlruns").as_uri())
     with mlflow.start_run():
         mlflow.log_params(record["config"])
@@ -145,16 +176,26 @@ def main(argv: list[str] | None = None, load: Loader | None = None) -> int:
     parser.add_argument("--manifest", type=Path, required=True, help="CSV clip,signer,glosses")
     parser.add_argument("--vocab", type=Path, required=True, help="uma glosa por linha")
     parser.add_argument("--out", type=Path, required=True, help="diretorio fora do repositorio")
-    parser.add_argument("--epochs", type=int, default=30)
+    parser.add_argument("--epochs", type=int, default=80)
     parser.add_argument("--batch-size", type=int, default=16)
-    parser.add_argument("--lr", type=float, default=1e-3)
+    parser.add_argument("--lr", type=float, default=3e-3)
     parser.add_argument("--hidden", type=int, default=128)
     parser.add_argument("--layers", type=int, default=4, help="campo receptivo 1 + 2(2^L - 1)")
     parser.add_argument("--test-fraction", type=float, default=0.2, help="dos sinalizantes")
     parser.add_argument(
+        "--val-fraction",
+        type=float,
+        default=0.0,
+        help="dos sinalizantes de treino; se > 0, guarda a epoca de menor erro na validacao",
+    )
+    parser.add_argument("--schedule", choices=["constante", "cosseno"], default="constante")
+    parser.add_argument(
         "--max-gap", type=int, default=5, help="fill_gaps; use o mesmo valor no tempo real"
     )
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument(
+        "--train-only", nargs="*", default=[], help="sinalizantes sempre no treino, fora do sorteio"
+    )
     args = parser.parse_args(argv)
     try:
         out = check_output(args.out)
@@ -163,14 +204,37 @@ def main(argv: list[str] | None = None, load: Loader | None = None) -> int:
 
     vocab = read_vocab(args.vocab)
     train_clips, test_clips = split_by_signer(
-        read_manifest(args.manifest, vocab), args.test_fraction, args.seed
+        read_manifest(args.manifest, vocab), args.test_fraction, args.seed, args.train_only
     )
+    val_clips: list[Clip] = []
+    if args.val_fraction > 0:
+        # A validacao sai do treino, nunca do teste: o teste fica o mesmo com ou sem ela.
+        train_clips, val_clips = split_by_signer(
+            train_clips, args.val_fraction, args.seed, args.train_only
+        )
     load = load or _features_loader(args.max_gap)
     train_data, test_data = ClipDataset(train_clips, load), ClipDataset(test_clips, load)
+    val_data = ClipDataset(val_clips, load)
+
+    def val_ger(m: nn.Module) -> float:
+        m.eval()
+        with torch.no_grad():
+            hyps = [greedy_decode(m(torch.from_numpy(x)[None])[0].numpy()) for x in val_data.feats]
+        triples = ((c.signer, c.labels, h) for c, h in zip(val_clips, hyps, strict=True))
+        return evaluate(triples, vocab)["ger"]
 
     torch.manual_seed(args.seed)
     model = CausalTCN(len(vocab), args.hidden, args.layers)
-    losses = fit(model, train_data, args.epochs, args.batch_size, args.lr, args.seed)
+    losses, val_gers = fit(
+        model,
+        train_data,
+        args.epochs,
+        args.batch_size,
+        args.lr,
+        args.seed,
+        args.schedule,
+        val_ger if val_clips else None,
+    )
 
     path = export_onnx(model, out / "model.onnx")
     if check_contract(path) != len(vocab):
@@ -192,8 +256,11 @@ def main(argv: list[str] | None = None, load: Loader | None = None) -> int:
             },
             "vocab": vocab,
             "train_signers": sorted({c.signer for c in train_clips}),
+            "val_signers": sorted({c.signer for c in val_clips}),
             "test_signers": sorted({c.signer for c in test_clips}),
             "train_loss": losses,
+            "val_ger": val_gers,
+            "best_epoch": int(np.argmin(val_gers)) + 1 if val_gers else None,
             "onnx": {"path": path, "opset": OPSET, "max_abs_diff": diff, "atol": ATOL},
             "metrics": metrics,
         },

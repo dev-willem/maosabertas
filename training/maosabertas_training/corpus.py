@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import csv
 import random
+from collections.abc import Collection, Sequence
 from pathlib import Path
 from typing import NamedTuple
 
@@ -73,16 +74,39 @@ def read_manifest(path: Path, vocab: list[str]) -> list[Clip]:
 
 
 def split_by_signer(
-    clips: list[Clip], test_fraction: float, seed: int
+    clips: list[Clip], test_fraction: float, seed: int, train_only: Collection[str] = ()
 ) -> tuple[list[Clip], list[Clip]]:
     """Divide em (treino, teste) por sinalizante, nunca por clipe. Deterministica por `seed`.
 
     O teste recebe `round(test_fraction * sinalizantes)` sinalizantes, no minimo 1, e o
-    treino nunca fica vazio.
+    treino nunca fica vazio. Os sinalizantes de `train_only` ficam sempre no treino, fora
+    do sorteio: por exemplo, quem tem sinais que nenhum outro faz, que nao dariam para medir.
     """
-    signers = sorted({c.signer for c in clips})
+    signers = sorted({c.signer for c in clips} - set(train_only))
     if len(signers) < 2:
         raise ValueError("divisao por sinalizante precisa de pelo menos 2 sinalizantes")
     random.Random(seed).shuffle(signers)
     test = set(signers[: min(max(1, round(test_fraction * len(signers))), len(signers) - 1)])
     return [c for c in clips if c.signer not in test], [c for c in clips if c.signer in test]
+
+
+def merge_manifests(sources: Sequence[tuple[Path, Path]], out: Path) -> tuple[Path, Path]:
+    """Junta pares (manifesto, vocabulario) de varias bases em out/corpus.csv e out/vocab.txt.
+
+    Os caminhos dos clipes viram absolutos. O vocabulario e a uniao, na ordem em que as glosas
+    aparecem; a mesma glosa em bases diferentes vira a mesma classe.
+    """
+    vocab: list[str] = []
+    rows = []
+    for manifest, vocab_path in sources:
+        classes = read_vocab(vocab_path)
+        vocab += [g for g in classes[1:] if g not in vocab]
+        for c in read_manifest(manifest, classes):
+            rows.append((c.path.resolve(), c.signer, " ".join(classes[i] for i in c.labels)))
+    out.mkdir(parents=True, exist_ok=True)
+    (out / "vocab.txt").write_text("".join(f"{g}\n" for g in vocab), encoding="utf-8")
+    with (out / "corpus.csv").open("w", encoding="utf-8", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(COLUMNS)
+        w.writerows(rows)
+    return out / "corpus.csv", out / "vocab.txt"
