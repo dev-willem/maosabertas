@@ -201,6 +201,8 @@ dependencies = [
  "maosabertas-core",
  "maosabertas-protocol",
  "ort",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
