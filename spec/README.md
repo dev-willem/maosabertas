@@ -1,8 +1,8 @@
 # Especificação do protocolo — v0.1
 
 > **Licença:** esta pasta é publicada sob **CC BY 4.0** (atribuição),
-> diferente do código, que é Apache-2.0. Adicione o texto da licença aqui
-> antes da publicação.
+> diferente do código, que é Apache-2.0. O texto da licença está em
+> [`LICENSE`](LICENSE).
 
 Status: **rascunho**. O conjunto de rótulos ainda não passou por revisão
 de linguistas e sinalizantes surdos.

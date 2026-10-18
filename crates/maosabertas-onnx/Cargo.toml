@@ -14,3 +14,6 @@ ort = { version = "=2.0.0-rc.14", default-features = false, features = ["std", "
 
 [dev-dependencies]
 maosabertas-protocol = { path = "../maosabertas-protocol" }
+# Exemplo `transcrever`: le o registro do treino e os landmarks em JSON Lines.
+serde = { workspace = true }
+serde_json = { workspace = true }

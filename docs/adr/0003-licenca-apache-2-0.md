@@ -44,7 +44,7 @@ para todos igualmente.
   descartada por reduzir a adoção.
 - Dependências com restrição de uso (por exemplo, OpenFace, somente
   pesquisa) não podem entrar no núcleo. Modelos treinados em bases com
-  termos restritivos (MINDS-Libras, V-LIBRASIL) podem herdar a
+  termos restritivos podem herdar a
   restrição e precisam de revisão antes de publicação.
 
 ## Pendências
@@ -53,4 +53,5 @@ para todos igualmente.
 - [ ] Pesquisar o nome no INPI e verificar domínios
 - [ ] Revisão por advogado de software livre e proteção de dados
 - [ ] Auditar a licença de cada dependência e de cada base de dados
-- [ ] Adicionar o texto da CC BY 4.0 em `spec/` quando a pasta existir
+- [x] Adicionar o texto da CC BY 4.0 em `spec/` (`spec/LICENSE`, texto oficial em
+      creativecommons.org/licenses/by/4.0/legalcode.txt)

@@ -31,6 +31,9 @@ class CausalTCN(nn.Module):
         """x: [B, T, FEATURE_DIM] -> logits [B, T, C]."""
         h = self.inp(x.transpose(1, 2))
         for conv in self.convs:
-            # Padding so a esquerda: o quadro t nunca ve o futuro.
-            h = h + torch.relu(conv(F.pad(h, ((KERNEL - 1) * conv.dilation[0], 0))))
+            # Padding so a esquerda: o quadro t nunca ve o futuro. Replicando o primeiro quadro,
+            # e nao com zeros: a borda de zeros virava um atalho para o CTC emitir a glosa no
+            # quadro 0, que so tem a pose de repouso (experimento 001).
+            pad = (KERNEL - 1) * conv.dilation[0]
+            h = h + torch.relu(conv(F.pad(h, (pad, 0), mode="replicate")))
         return self.out(h).transpose(1, 2)
