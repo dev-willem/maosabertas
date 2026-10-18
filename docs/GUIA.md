@@ -233,6 +233,13 @@ Parâmetros: `--epochs` (80), `--batch-size` (16), `--lr` (3e-3), `--hidden`
 (128), `--layers` (4), `--test-fraction` (0,2 dos sinalizantes), `--max-gap`
 (5), `--seed` (0). Nenhum desses valores foi calibrado.
 
+Opcionais, desligados por padrão: `--schedule cosseno` (lr decai até 0) e
+`--val-fraction` (tira sinalizantes do treino para validação e guarda a época
+de menor erro). Medidos com 3 sementes num corpus de 12 pessoas, nenhum dos
+dois baixou o erro médio no teste (registro fora do repositório); servem para
+corpora maiores. `--train-only` mantém sinalizantes sempre no treino, como
+quem faz sinais que mais ninguém faz.
+
 O que acontece:
 
 1. Divide os clipes **por sinalizante** (nenhum sinalizante nos dois lados).
