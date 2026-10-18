@@ -30,6 +30,9 @@ pub struct FrameQuality {
 /// Marcador nao manual aberto no corte fecha ali e reabre no enunciado
 /// seguinte: o marcador tem escopo proprio, mas o enunciado e a unidade do
 /// schema. Sinal em curso num corte por duracao sai partido nos dois.
+///
+/// Sem modelo nao manual: `labels` vazio e bloco nao manual vazio em
+/// [`push`](Self::push). `h` continua validada, mas nao tem efeito.
 #[derive(Debug, Clone)]
 pub struct Transcriber<'a> {
     ctc: CtcDecoder<'a>,
@@ -99,9 +102,15 @@ impl<'a> Transcriber<'a> {
     ) -> Result<Vec<Utterance>, Error> {
         let (cm, cn) = self.classes;
         check(manual, cm)?;
-        check(nonmanual, cn)?;
         let frames = manual.len() / cm;
-        for got in [nonmanual.len() / cn, seen.len()] {
+        // Sem rotulos nao manuais o bloco nao manual vem vazio e vale qualquer numero de quadros.
+        let nonmanual_frames = if cn == 0 && nonmanual.is_empty() {
+            frames
+        } else {
+            check(nonmanual, cn)?;
+            nonmanual.len() / cn
+        };
+        for got in [nonmanual_frames, seen.len()] {
             if got != frames {
                 return Err(Error::FrameCount {
                     expected: frames,
@@ -111,10 +120,12 @@ impl<'a> Transcriber<'a> {
         }
         let fps = self.clock.fps;
         let mut out = Vec::new();
-        let rows = manual.chunks_exact(cm).zip(nonmanual.chunks_exact(cn));
-        for ((m, n), q) in rows.zip(seen) {
+        for (i, (m, q)) in manual.chunks_exact(cm).zip(seen).enumerate() {
             self.manual.extend(self.ctc.push(m)?);
-            self.nonmanual.extend(self.scope.push(n)?);
+            if cn > 0 {
+                self.nonmanual
+                    .extend(self.scope.push(&nonmanual[i * cn..(i + 1) * cn])?);
+            }
             self.reference += usize::from(q.reference);
             self.face += usize::from(q.face);
             self.frame += 1;
@@ -405,6 +416,39 @@ mod tests {
         assert_eq!(
             ([u.t_start, u.t_end], u.gloss_line()),
             ([0.0, 0.25], "A".into())
+        );
+    }
+
+    #[test]
+    fn so_modelo_manual_sem_rotulos_nao_manuais() {
+        let vocab = vocab();
+        let mut t = Transcriber::new("t_", &vocab, 0, &[], H, PAUSA, 4.0, 0.0).unwrap();
+        let visto = [FrameQuality {
+            reference: true,
+            face: false,
+        }; 5];
+        let (a, branco, b) = (
+            [0.125, 0.75, 0.125],
+            [0.75, 0.125, 0.125],
+            [0.125, 0.125, 0.75],
+        );
+        let bloco = [a, branco, branco, branco, b].concat();
+        // Sem rotulos, o bloco nao manual vem vazio; quadro a mais ou a menos continua erro.
+        assert!(t.push(&bloco, &[0.0; 5], &visto).is_err());
+        assert!(t.push(&bloco, &[], &visto[..4]).is_err());
+        let mut out = t.push(&bloco, &[], &visto).unwrap();
+        out.extend(t.finish());
+        assert_eq!(
+            resumo(&out),
+            [
+                ("t_1", [0.0, 1.0], "A".into()),
+                ("t_2", [1.0, 1.25], "B".into())
+            ]
+        );
+        assert!(out.iter().all(|u| u.nonmanual.is_empty()));
+        assert_eq!(
+            out[0].quality.as_ref().and_then(|q| q.face_occluded),
+            Some(1.0)
         );
     }
 
