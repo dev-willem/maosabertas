@@ -10,7 +10,7 @@
 use serde::{Deserialize, Serialize};
 
 /// Versao da especificacao que este crate implementa.
-pub const SPEC_VERSION: &str = "0.1";
+pub const SPEC_VERSION: &str = "0.2";
 
 /// Intervalo `[inicio, fim]` em segundos.
 pub type Span = [f64; 2];
@@ -37,8 +37,9 @@ pub struct ManualItem {
     pub gloss: String,
     #[serde(default)]
     pub kind: ManualKind,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub param: Option<serde_json::Value>,
+    /// Uma entrada por mao que articula o item; no maximo duas.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub fonologia: Vec<HandPhonology>,
     pub t: Span,
     pub conf: f64,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -53,6 +54,94 @@ pub enum ManualKind {
     Classifier,
     Fingerspelling,
     Pointing,
+}
+
+/// Mao de quem sinaliza, nao lado da imagem.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Hand {
+    Esquerda,
+    Direita,
+}
+
+/// Vetor (x, y) no referencial do corpo: origem no meio dos ombros, unidade =
+/// largura dos ombros, x para a direita de quem sinaliza, y para cima.
+pub type Vec2 = [f64; 2];
+
+/// Vetor unitario (x, y, z) no referencial do corpo; z para a frente.
+pub type Vec3 = [f64; 3];
+
+/// CM, PA, O e M de uma mao no trecho do item. Cada parametro traz a medida, quando
+/// o nucleo mede, e a categoria, quando existe inventario linguistico.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct HandPhonology {
+    pub mao: Hand,
+    /// Fracao dos quadros do trecho com a mao no espaco de sinalizacao.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub visivel: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cm: Option<Handshape>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pa: Option<Location>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub o: Option<Orientation>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub m: Option<Movement>,
+}
+
+/// Categoria do inventario linguistico e a confianca nela. `conf` exige `cat`.
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+pub struct Category {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cat: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub conf: Option<f64>,
+}
+
+/// Configuracao de mao: so categoria. O descritor medido nao sai no protocolo (ADR-011).
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+pub struct Handshape {
+    #[serde(flatten)]
+    pub category: Category,
+}
+
+/// Ponto de articulacao.
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+pub struct Location {
+    /// Centro da palma nos quadros de segurar do trecho.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pos: Option<Vec2>,
+    /// Reservado: o nucleo nao emite profundidade enquanto ela nao for validada.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub prof: Option<f64>,
+    #[serde(flatten)]
+    pub category: Category,
+}
+
+/// Orientacao.
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+pub struct Orientation {
+    /// Para onde a palma olha.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub palma: Option<Vec3>,
+    /// Do punho para a base do dedo medio.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dedos: Option<Vec3>,
+    #[serde(flatten)]
+    pub category: Category,
+}
+
+/// Movimento do centro da palma no trecho.
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+pub struct Movement {
+    /// Do primeiro ao ultimo quadro visivel.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub desloc: Option<Vec2>,
+    /// Comprimento do caminho, em larguras de ombro.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub trajeto: Option<f64>,
+    #[serde(flatten)]
+    pub category: Category,
 }
 
 /// Marcador nao manual. Tem escopo proprio: nunca pertence a um sinal.

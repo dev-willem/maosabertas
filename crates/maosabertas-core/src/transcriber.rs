@@ -1,4 +1,5 @@
 use crate::frames::{check, Clock};
+use crate::phonology::{measure, Hands};
 use crate::scope::sort;
 use crate::{utterance, CtcDecoder, Error, Hysteresis, ScopeSegmenter, Token};
 use maosabertas_protocol::{ManualItem, NonManualItem, NonManualLabel, Quality, Tier, Utterance};
@@ -33,6 +34,9 @@ pub struct FrameQuality {
 ///
 /// Sem modelo nao manual: `labels` vazio e bloco nao manual vazio em
 /// [`push`](Self::push). `h` continua validada, mas nao tem efeito.
+///
+/// Com as maos de cada quadro ([`phonology::hands`](crate::phonology::hands)), cada
+/// item manual sai com a `fonologia` medida no seu trecho (ADR-011).
 #[derive(Debug, Clone)]
 pub struct Transcriber<'a> {
     ctc: CtcDecoder<'a>,
@@ -53,6 +57,8 @@ pub struct Transcriber<'a> {
     /// Quadros do enunciado corrente com referencia e com rosto.
     reference: usize,
     face: usize,
+    /// Maos de cada quadro do enunciado corrente.
+    hands: Vec<Hands>,
 }
 
 impl<'a> Transcriber<'a> {
@@ -88,17 +94,20 @@ impl<'a> Transcriber<'a> {
             nonmanual: Vec::new(),
             reference: 0,
             face: 0,
+            hands: Vec::new(),
         })
     }
 
     /// Recebe o mesmo bloco de quadros dos dois modelos, em linha (quadro x
-    /// classe), e o que a captura viu em cada quadro. Devolve os enunciados que
-    /// fecharam no bloco. Bloco invalido nao altera o estado.
+    /// classe), o que a captura viu e as maos de cada quadro. Devolve os
+    /// enunciados que fecharam no bloco. `hands` vazio = sem medicao fonologica
+    /// nesses quadros. Bloco invalido nao altera o estado.
     pub fn push(
         &mut self,
         manual: &[f32],
         nonmanual: &[f32],
         seen: &[FrameQuality],
+        hands: &[Hands],
     ) -> Result<Vec<Utterance>, Error> {
         let (cm, cn) = self.classes;
         check(manual, cm)?;
@@ -110,7 +119,12 @@ impl<'a> Transcriber<'a> {
             check(nonmanual, cn)?;
             nonmanual.len() / cn
         };
-        for got in [nonmanual_frames, seen.len()] {
+        let hand_frames = if hands.is_empty() {
+            frames
+        } else {
+            hands.len()
+        };
+        for got in [nonmanual_frames, seen.len(), hand_frames] {
             if got != frames {
                 return Err(Error::FrameCount {
                     expected: frames,
@@ -128,6 +142,8 @@ impl<'a> Transcriber<'a> {
             }
             self.reference += usize::from(q.reference);
             self.face += usize::from(q.face);
+            self.hands
+                .push(hands.get(i).copied().unwrap_or([None, None]));
             self.frame += 1;
             if self.ctc.blank_run() as f64 / fps >= self.ending.pause
                 || (self.frame - self.start) as f64 / fps >= self.ending.max_duration
@@ -147,8 +163,10 @@ impl<'a> Transcriber<'a> {
     fn close(&mut self) -> Option<Utterance> {
         self.manual.extend(self.ctc.cut());
         self.nonmanual.extend(self.scope.cut());
-        let manual = std::mem::take(&mut self.manual);
+        let mut manual = std::mem::take(&mut self.manual);
         let mut nonmanual = std::mem::take(&mut self.nonmanual);
+        let hands = std::mem::take(&mut self.hands);
+        annotate(&mut manual, &hands, self.start, &self.clock);
         let (reference, face) = (
             std::mem::take(&mut self.reference),
             std::mem::take(&mut self.face),
@@ -172,10 +190,42 @@ impl<'a> Transcriber<'a> {
     }
 }
 
+/// Preenche a `fonologia` de cada item com as maos dos quadros do seu trecho.
+/// `hands[0]` e o quadro `first`; os itens estao em ordem e nao se sobrepoem.
+///
+/// shortcut: o intervalo do CTC e so o pico, nao o sinal (ver `CtcDecoder`); o trecho
+/// medido vai do meio da folga com o vizinho anterior ao meio da folga com o seguinte
+/// (as bordas do enunciado contam como vizinhos). Trocar por alinhamento quando houver
+/// modelo treinado.
+fn annotate(items: &mut [ManualItem], hands: &[Hands], first: usize, clock: &Clock) {
+    let n = hands.len();
+    let spans: Vec<(usize, usize)> = items
+        .iter()
+        .map(|m| {
+            let at = |t: f64| clock.frame(t).saturating_sub(first).min(n);
+            (at(m.t[0]), at(m.t[1]))
+        })
+        .collect();
+    let dt = (1.0 / clock.fps) as f32;
+    for (k, item) in items.iter_mut().enumerate() {
+        let (a, b) = spans[k];
+        let before = k.checked_sub(1).map_or(0, |j| spans[j].1);
+        let after = spans.get(k + 1).map_or(n, |s| s.0);
+        let window = &hands[(before + a) / 2..(b + after).div_ceil(2).max(b)];
+        item.fonologia = (0..2)
+            .filter_map(|side| {
+                let frames: Vec<_> = window.iter().map(|h| h[side]).collect();
+                measure(&frames, dt)
+            })
+            .collect();
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use maosabertas_protocol::ManualKind;
+    use crate::phonology::{HandPose, Side};
+    use maosabertas_protocol::{Hand, ManualKind};
 
     // Vocabulario sintetico: os nomes nao sao glosas de Libras.
     fn vocab() -> Vec<Token> {
@@ -233,7 +283,7 @@ mod tests {
             .zip(nonmanual.chunks(tamanho))
             .zip(seen.chunks(tamanho));
         for ((m, n), q) in blocos {
-            out.extend(t.push(m, n, q).unwrap());
+            out.extend(t.push(m, n, q, &[]).unwrap());
         }
         out.extend(t.finish());
         out
@@ -396,22 +446,22 @@ mod tests {
         }; 2];
         let a = [0.125, 0.75, 0.125];
         assert_eq!(
-            t.push(&a, &[0.0, 0.0], &visto[..1]).unwrap_err(),
+            t.push(&a, &[0.0, 0.0], &visto[..1], &[]).unwrap_err(),
             Error::FrameCount {
                 expected: 1,
                 got: 2
             }
         );
         assert_eq!(
-            t.push(&a, &[0.0], &visto).unwrap_err(),
+            t.push(&a, &[0.0], &visto, &[]).unwrap_err(),
             Error::FrameCount {
                 expected: 1,
                 got: 2
             }
         );
-        assert!(t.push(&a, &[1.5], &visto[..1]).is_err());
-        assert!(t.push(&[0.5, 0.5], &[0.0], &visto[..1]).is_err());
-        t.push(&a, &[0.0], &visto[..1]).unwrap();
+        assert!(t.push(&a, &[1.5], &visto[..1], &[]).is_err());
+        assert!(t.push(&[0.5, 0.5], &[0.0], &visto[..1], &[]).is_err());
+        t.push(&a, &[0.0], &visto[..1], &[]).unwrap();
         let u = t.finish().unwrap();
         assert_eq!(
             ([u.t_start, u.t_end], u.gloss_line()),
@@ -434,9 +484,9 @@ mod tests {
         );
         let bloco = [a, branco, branco, branco, b].concat();
         // Sem rotulos, o bloco nao manual vem vazio; quadro a mais ou a menos continua erro.
-        assert!(t.push(&bloco, &[0.0; 5], &visto).is_err());
-        assert!(t.push(&bloco, &[], &visto[..4]).is_err());
-        let mut out = t.push(&bloco, &[], &visto).unwrap();
+        assert!(t.push(&bloco, &[0.0; 5], &visto, &[]).is_err());
+        assert!(t.push(&bloco, &[], &visto[..4], &[]).is_err());
+        let mut out = t.push(&bloco, &[], &visto, &[]).unwrap();
         out.extend(t.finish());
         assert_eq!(
             resumo(&out),
@@ -450,6 +500,74 @@ mod tests {
             out[0].quality.as_ref().and_then(|q| q.face_occluded),
             Some(1.0)
         );
+    }
+
+    /// So a mao direita, de brinquedo, com o punho em (x, y) no referencial do corpo.
+    fn direita(x: f32, y: f32) -> Hands {
+        let mut points = [[x, y, 0.0]; 21];
+        for (i, p) in points.iter_mut().enumerate().skip(1) {
+            *p = [
+                x + 0.01 * ((i % 5) as f32 - 2.0),
+                y + 0.02 * (i / 5) as f32 + 0.01,
+                0.0,
+            ];
+        }
+        [
+            None,
+            Some(HandPose {
+                side: Side::Right,
+                points,
+            }),
+        ]
+    }
+
+    #[test]
+    fn itens_saem_com_a_fonologia_do_seu_trecho() {
+        let vocab = vocab();
+        let mut t = Transcriber::new("t_", &vocab, 0, &[], H, PAUSA, 4.0, 0.0).unwrap();
+        let (a, branco, b) = (
+            [0.125, 0.75, 0.125],
+            [0.75, 0.125, 0.125],
+            [0.125, 0.125, 0.75],
+        );
+        let bloco = [a, a, branco, branco, branco, b].concat();
+        let visto = [FrameQuality {
+            reference: true,
+            face: true,
+        }; 6];
+        // A mao anda 0,1 por quadro durante A e a folga, desce ao repouso e volta para B.
+        let maos = [
+            direita(0.0, -0.5),
+            direita(0.1, -0.5),
+            direita(0.2, -0.5),
+            direita(0.3, -0.5),
+            direita(0.3, -2.0),
+            direita(-0.2, 0.0),
+        ];
+        assert!(t.push(&bloco, &[], &visto, &maos[..5]).is_err());
+        let mut out = t.push(&bloco, &[], &visto, &maos).unwrap();
+        out.extend(t.finish());
+        assert_eq!(resumo(&out).len(), 2);
+
+        // A tem o pico nos quadros 0 e 1; o trecho medido vai ate o meio da folga (quadro 3).
+        let [f] = out[0].manual[0].fonologia.as_slice() else {
+            panic!("uma mao em A: {:?}", out[0].manual[0].fonologia);
+        };
+        assert_eq!((f.mao, f.visivel), (Hand::Direita, Some(1.0)));
+        let m = f.m.as_ref().unwrap();
+        assert_eq!((m.desloc, m.trajeto), (Some([0.3, 0.0]), Some(0.3)));
+
+        let [g] = out[1].manual[0].fonologia.as_slice() else {
+            panic!("uma mao em B");
+        };
+        assert_eq!(g.m.as_ref().unwrap().desloc, Some([0.0, 0.0]));
+        assert!(g.pa.as_ref().unwrap().pos.unwrap()[0] < 0.0);
+    }
+
+    #[test]
+    fn sem_maos_nao_ha_fonologia() {
+        let out = transcreve(&[sinal(1), sinal(1)], PAUSA, 2);
+        assert!(out[0].manual[0].fonologia.is_empty());
     }
 
     #[test]

@@ -305,6 +305,9 @@ Na câmera, o teste é a ferramenta Python da seção 3.
 - [x] **Medição fonológica no núcleo** (ADR-010): descritor de configuração de
       mão, centro e normal da palma, direção dos dedos e quadros de segurar, no
       referencial do corpo. No Python: `features.handshape` e `features.holds`.
+- [x] **Spec v0.2** (ADR-011): cada item manual sai com a `fonologia` de cada
+      mão (locação, orientação e movimento medidos; categorias vazias até haver
+      inventário). O `transcrever` já emite.
 - [ ] **Binding do `CtcDecoder` no `maosabertas-py`**, para a câmera e a
       avaliação deixarem a cópia em Python (marcadas com `shortcut:`).
 - [ ] **Treino do modelo não manual** (sigmoide por rótulo) no mesmo

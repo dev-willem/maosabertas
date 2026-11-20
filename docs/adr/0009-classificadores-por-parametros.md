@@ -259,7 +259,9 @@ classe de menor amplitude provavelmente vem disso.
    grupos diferentes), com triagem humana dos grupos.
 3. ~~Portar o descritor e o detector de segurar para `maosabertas-core`, com
    testes de invariância, sem mexer nas 203 features.~~ Feito no ADR-010.
-4. Propor a v0.2 do schema só depois das decisões da seção 5.
+4. Propor a v0.2 do schema só depois das decisões da seção 5. A parte de schema
+   foi decidida no ADR-011, com categorias ausentes até haver inventário; a parte
+   linguística segue em aberto.
 
 ## Alternativas consideradas
 

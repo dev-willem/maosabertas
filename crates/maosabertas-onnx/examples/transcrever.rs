@@ -12,9 +12,12 @@
 //! partes achatadas no layout do `.npz` e `null` onde nada foi detectado.
 //! Landmarks sao dado pessoal: a entrada fica fora do repositorio.
 //!
+//! Cada item sai com a `fonologia` das maos no seu trecho (ADR-011).
+//!
 //! So o modelo manual: ainda nao ha classificador nao manual treinado.
 //! Pausa e duracao maxima nao tem padrao (ADR-007); calibre com dados.
 
+use maosabertas_core::phonology;
 use maosabertas_core::{
     frame_features, Ending, FrameLandmarks, FrameQuality, GapFiller, Hysteresis, Token,
     Transcriber, BLENDSHAPE_VALUES, FACE_VALUES, HAND_VALUES, POSE_VALUES,
@@ -128,7 +131,7 @@ fn run(args: Vec<String>) -> Result<(), Box<dyn Error>> {
 
     // Mesmo caminho do treino: features do nucleo e a regra de lacunas com o mesmo max_gap.
     let mut lacunas = GapFiller::new(exp.config.max_gap);
-    let (mut features, mut visto) = (Vec::new(), Vec::new());
+    let (mut features, mut visto, mut maos) = (Vec::new(), Vec::new(), Vec::new());
     for (i, q) in quadros.iter().enumerate() {
         let (left, right) = (
             com_nan(&q.left_hand, HAND_VALUES),
@@ -147,13 +150,15 @@ fn run(args: Vec<String>) -> Result<(), Box<dyn Error>> {
             pose: &pose,
         };
         // Como o treino: largura / altura em f64, depois f32.
-        let f = frame_features(&lm, (q.size[0] / q.size[1]) as f32)
-            .map_err(em(&format!("{entrada}: quadro {i}")))?;
+        let aspect = (q.size[0] / q.size[1]) as f32;
+        let onde = || format!("{entrada}: quadro {i}");
+        let f = frame_features(&lm, aspect).map_err(em(&onde()))?;
         visto.push(FrameQuality {
             reference: f.is_some(),
             face: q.face.is_some(),
         });
         features.extend_from_slice(lacunas.push(f.as_deref())?);
+        maos.push(phonology::hands(&left, &right, &pose, aspect).map_err(em(&onde()))?);
     }
 
     let mut model = Model::from_file(&modelo).map_err(em(&modelo))?;
@@ -182,7 +187,7 @@ fn run(args: Vec<String>) -> Result<(), Box<dyn Error>> {
     };
     // O treino usa CTC com branco = 0.
     let mut t = Transcriber::new("u_", &vocab, 0, &[], SEM_EFEITO, ending, fps, t0)?;
-    let mut enunciados = t.push(&probs, &[], &visto)?;
+    let mut enunciados = t.push(&probs, &[], &visto, &maos)?;
     enunciados.extend(t.finish());
 
     let mut saida = std::io::stdout().lock();

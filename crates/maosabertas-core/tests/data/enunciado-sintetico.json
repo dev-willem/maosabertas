@@ -1,11 +1,39 @@
 {
-  "spec_version": "0.1",
+  "spec_version": "0.2",
   "utterance_id": "sintetico_1",
   "t_start": 10.0,
   "t_end": 12.0,
   "manual": [
-    { "gloss": "A", "kind": "lexical", "t": [10.0, 10.5], "conf": 0.625 },
-    { "gloss": "B", "kind": "lexical", "t": [10.75, 11.25], "conf": 0.875 }
+    {
+      "gloss": "A",
+      "kind": "lexical",
+      "fonologia": [
+        {
+          "mao": "direita",
+          "visivel": 1.0,
+          "pa": { "pos": [0.21, -0.43] },
+          "o": { "palma": [0.0, 0.0, -1.0], "dedos": [-0.55, 0.83, 0.0] },
+          "m": { "desloc": [0.02, 0.0], "trajeto": 0.02 }
+        }
+      ],
+      "t": [10.0, 10.5],
+      "conf": 0.625
+    },
+    {
+      "gloss": "B",
+      "kind": "lexical",
+      "fonologia": [
+        {
+          "mao": "direita",
+          "visivel": 0.6,
+          "pa": { "pos": [0.26, -0.43] },
+          "o": { "palma": [0.0, 0.0, -1.0], "dedos": [-0.55, 0.83, 0.0] },
+          "m": { "desloc": [0.04, 0.0], "trajeto": 0.04 }
+        }
+      ],
+      "t": [10.75, 11.25],
+      "conf": 0.875
+    }
   ],
   "nonmanual": [
     { "tier": "gramatical", "label": "interrogativa-sn", "t": [10.25, 11.25], "conf": 0.84375 }

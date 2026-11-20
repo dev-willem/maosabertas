@@ -92,7 +92,7 @@ impl<'v> CtcDecoder<'v> {
         (class != self.blank).then(|| ManualItem {
             gloss: self.vocab[class].gloss.clone(),
             kind: self.vocab[class].kind,
-            param: None,
+            fonologia: Vec::new(),
             t: self.clock.span(first, end),
             conf: sum / (end - first) as f64,
             alt: Vec::new(),
