@@ -45,9 +45,11 @@ Há dois limites que o schema não pode cruzar:
    Ele passa a ser emitido quando houver validação contra referência de
    profundidade real.
 6. **Como o núcleo agrega** (`phonology::measure`, chamado pelo `Transcriber`):
-   - Trecho do item: do meio da folga com o item anterior ao meio da folga com o
-     seguinte (as bordas do enunciado contam como vizinhos), porque o intervalo do
-     CTC é só o pico. Isso é um `shortcut`, a trocar por alinhamento.
+   - Trecho do item: o pico do CTC estendido até o meio da folga com cada vizinho,
+     sem passar de 0,25 s de cada lado, porque o intervalo do CTC é só o pico. O
+     limite impede que a pausa que fecha o enunciado (a mão descendo ao repouso)
+     entre inteira e derrube a fração visível de um sinal isolado (achado da
+     revisão). Isso é um `shortcut`, a trocar por alinhamento.
    - A mão entra se ficar no espaço de sinalização em pelo menos metade dos
      quadros do trecho (`shortcut`, sem calibração).
    - PA e O: mediana nos quadros de segurar; sem segurar, em todos os visíveis.

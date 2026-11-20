@@ -89,7 +89,7 @@ pub fn hands(left: &[f32], right: &[f32], pose: &[f32], aspect: f32) -> Result<H
 /// referencial do corpo: os tres eixos trocam de sentido. Quem sinaliza esta de frente,
 /// entao a direita da imagem e a esquerda dele.
 fn to_body(raw: &[f32], side: Side, b: Shoulders, aspect: f32) -> Option<HandPose> {
-    if raw.iter().any(|v| v.is_nan()) {
+    if !raw.iter().all(|v| v.is_finite()) {
         return None;
     }
     let mut points = [[0.0; 3]; 21];
