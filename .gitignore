@@ -5,6 +5,10 @@
 *.webm
 *.npz
 *.parquet
+# Base unica (ADR-013): landmarks de todas as fontes
+*.sqlite
+*.sqlite3
+*.db
 data/
 corpus/
 gravacoes/

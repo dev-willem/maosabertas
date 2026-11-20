@@ -81,6 +81,38 @@ def test_validacao_por_sinalizante_escolhe_a_melhor_epoca(tmp_path):
     assert rec["best_epoch"] == int(np.argmin(rec["val_ger"])) + 1
 
 
+def test_treino_pela_base_unica_registra_fontes_e_licenca(tmp_path):
+    from maosabertas_training import base
+    from maosabertas_training.landmarks import SHAPES
+
+    data = _corpus(tmp_path)
+    for name in data:  # a base guarda o .npz; o loader de teste ignora o conteudo
+        partes = {k: np.zeros((3, *s), np.float32) for k, s in SHAPES.items()}
+        np.savez_compressed(tmp_path / name, t=np.arange(3.0), size=np.array([4, 3]), **partes)
+    con = base.abrir(tmp_path / "base.sqlite", criar=True)
+    base.registrar_fonte(con, "sintetica", "CC BY-NC 4.0", comercial=False)
+    base.importar_manifesto(con, "sintetica", tmp_path / "m.csv")
+    con.close()
+
+    out = tmp_path / "saida"
+    args = ["--base", str(tmp_path / "base.sqlite"), *_args(tmp_path, out)[4:]]
+    assert main(args, load=lambda p: data[p.name]) == 0
+
+    rec = json.loads((out / "experiment.json").read_text(encoding="utf-8"))
+    assert rec["fontes"] == [{"nome": "sintetica", "licenca": "CC BY-NC 4.0", "comercial": False}]
+    assert rec["comercial"] is False
+    assert sorted(rec["vocab"][1:]) == GLOSSES
+    assert check_contract(out / "model.onnx") == len(GLOSSES) + 1
+
+    with pytest.raises(SystemExit):  # manifesto sem vocabulario
+        main(["--manifest", str(tmp_path / "m.csv"), "--out", str(out)])
+    with pytest.raises(SystemExit):  # fonte com nome errado nao e ignorada em silencio
+        main([*args, "--fontes", "sintetica", "sintetika"], load=lambda p: data[p.name])
+    with pytest.raises(SystemExit):  # base inexistente nao vira base vazia
+        main(["--base", str(tmp_path / "outra.sqlite"), "--out", str(out)])
+    assert not (tmp_path / "outra.sqlite").exists()
+
+
 def test_saida_no_repositorio_e_recusada(tmp_path):
     data = _corpus(tmp_path)
     with pytest.raises(SystemExit):

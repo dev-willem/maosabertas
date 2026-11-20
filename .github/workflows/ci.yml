@@ -65,7 +65,7 @@ jobs:
         run: |
           set -e
           # Imagens tambem: captura de tela da camera tem rosto. Diagramas vao em SVG.
-          encontrados=$(git ls-files | grep -Ei '\.(mp4|mov|avi|webm|npz|parquet|onnx|pt|pth|tflite|task|png|jpe?g|bmp|webp|heic)$' || true)
+          encontrados=$(git ls-files | grep -Ei '\.(mp4|mov|avi|webm|npz|parquet|sqlite3?|db|onnx|pt|pth|tflite|task|png|jpe?g|bmp|webp|heic)$' || true)
           if [ -n "$encontrados" ]; then
             echo "Arquivos proibidos no repositório (ver CONTRIBUTING.md):"
             echo "$encontrados"
