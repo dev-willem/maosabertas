@@ -44,6 +44,12 @@ impl Clock {
         Ok(Self { fps, t0 })
     }
 
+    /// Indice do quadro que comeca no instante `t`: o inverso de [`span`](Self::span).
+    pub(crate) fn frame(&self, t: f64) -> usize {
+        // `as` satura: instante antes de t0 vira o quadro 0.
+        ((t - self.t0) * self.fps).round() as usize
+    }
+
     /// Intervalo dos quadros `first..end` (fim exclusivo).
     pub(crate) fn span(&self, first: usize, end: usize) -> Span {
         [

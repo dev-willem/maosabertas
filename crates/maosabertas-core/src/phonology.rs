@@ -15,6 +15,7 @@
 
 use crate::features::{check_aspect, check_parts, shoulders, Shoulders};
 use crate::{Error, HAND_VALUES, POSE_VALUES};
+use maosabertas_protocol::{Hand, HandPhonology, Location, Movement, Orientation};
 
 /// Valores do descritor de configuracao de mao: 15 flexoes, 4 aberturas e 15 distancias.
 pub const HANDSHAPE_DIM: usize = 34;
@@ -25,6 +26,9 @@ pub const HANDSHAPE_DIM: usize = 34;
 pub const HOLD_SPEED: f32 = 1.5;
 /// Repouso: punho mais que isto abaixo do meio dos ombros, em larguras de ombro.
 pub const REST_DEPTH: f32 = 1.0;
+/// shortcut: a mao entra no item se ficar no espaco de sinalizacao em pelo menos esta
+/// fracao dos quadros do trecho; calibrar com anotacao de mao ativa quando houver.
+pub const MIN_VISIBLE: f64 = 0.5;
 
 type Point = [f32; 3];
 
@@ -188,6 +192,86 @@ pub fn handshape(p: &[Point; 21]) -> Option<[f32; HANDSHAPE_DIM]> {
     debug_assert_eq!(values.len(), HANDSHAPE_DIM);
     let out: [f32; HANDSHAPE_DIM] = values.try_into().ok()?;
     out.iter().all(|v| v.is_finite()).then_some(out)
+}
+
+/// PA, O e M de uma mao num trecho, para o protocolo (ADR-011). `frames` sao os quadros
+/// do trecho, em ordem, `dt` segundos um do outro, e todos da mesma mao.
+///
+/// - PA e O: mediana nos quadros de segurar; sem segurar, em todos os visiveis.
+/// - M: centro da palma do primeiro ao ultimo quadro visivel, e o caminho entre eles.
+/// - CM sai sem nada: o descritor nao entra no protocolo e ainda nao ha inventario.
+///
+/// `None` se a mao ficou no espaco de sinalizacao em menos de [`MIN_VISIBLE`] dos quadros.
+/// Valores com duas casas decimais: o protocolo nao precisa de mais (ADR-011).
+pub fn measure(frames: &[Option<HandPose>], dt: f32) -> Option<HandPhonology> {
+    let visible: Vec<&HandPose> = frames
+        .iter()
+        .flatten()
+        .filter(|h| h.in_signing_space())
+        .collect();
+    let (first, last) = (visible.first()?, visible.last()?);
+    let fraction = visible.len() as f64 / frames.len() as f64;
+    if fraction < MIN_VISIBLE {
+        return None;
+    }
+    let holds: Vec<&HandPose> = frames
+        .windows(2)
+        .filter_map(|w| match w {
+            [prev, Some(cur)] if is_hold(prev.as_ref(), cur, dt) => Some(cur),
+            _ => None,
+        })
+        .collect();
+    let still = if holds.is_empty() { &visible } else { &holds };
+
+    let centers: Vec<[f32; 2]> = visible.iter().map(|h| h.palm_center()).collect();
+    let path = centers
+        .windows(2)
+        .map(|w| (w[1][0] - w[0][0]).hypot(w[1][1] - w[0][1]))
+        .sum::<f32>();
+    let (start, end) = (first.palm_center(), last.palm_center());
+    let center = |i: usize| median(still.iter().map(|h| h.palm_center()[i]).collect());
+    let direction = |v: Vec<Point>| {
+        let m = |i: usize| median(v.iter().map(|p| p[i]).collect());
+        unit([m(0), m(1), m(2)]).map(|u| u.map(round))
+    };
+
+    Some(HandPhonology {
+        mao: match first.side {
+            Side::Left => Hand::Esquerda,
+            Side::Right => Hand::Direita,
+        },
+        visivel: Some(round(fraction as f32)),
+        cm: None,
+        pa: Some(Location {
+            pos: Some([round(center(0)), round(center(1))]),
+            ..Location::default()
+        }),
+        o: Some(Orientation {
+            palma: direction(still.iter().filter_map(|h| h.palm_normal()).collect()),
+            dedos: direction(still.iter().filter_map(|h| h.fingers()).collect()),
+            ..Orientation::default()
+        }),
+        m: Some(Movement {
+            desloc: Some([round(end[0] - start[0]), round(end[1] - start[1])]),
+            trajeto: Some(round(path)),
+            ..Movement::default()
+        }),
+    })
+}
+
+/// Duas casas decimais, sem zero negativo.
+fn round(v: f32) -> f64 {
+    (f64::from(v) * 100.0).round() / 100.0 + 0.0
+}
+
+/// Mediana; NaN se vazio.
+fn median(mut v: Vec<f32>) -> f32 {
+    v.sort_by(f32::total_cmp);
+    match v.len() {
+        0 => f32::NAN,
+        n if n % 2 == 1 => v[n / 2],
+        n => (v[n / 2 - 1] + v[n / 2]) / 2.0,
+    }
 }
 
 fn palm_size(p: &[Point; 21]) -> f32 {
@@ -445,5 +529,56 @@ mod tests {
         assert!(!repouso.in_signing_space());
         assert!(!is_hold(Some(&repouso), &repouso, dt));
         assert!(!is_hold(Some(&parada), &parada, f32::NAN));
+    }
+
+    /// Mao direita aberta, palma para a frente, no peito, deslocada `x` para a direita.
+    fn no_peito(x: f32) -> HandPose {
+        let m = mao(Side::Right, |v| meia_volta(escala(0.2)(v)));
+        HandPose {
+            points: m.points.map(|v| [v[0] + 0.3 + x, v[1] - 0.6, v[2]]),
+            ..m
+        }
+    }
+
+    #[test]
+    fn mede_mao_parada_no_trecho() {
+        let quadros = [Some(no_peito(0.0)); 4];
+        let f = measure(&quadros, 1.0 / 30.0).unwrap();
+        assert_eq!(f.mao, Hand::Direita);
+        assert_eq!(f.visivel, Some(1.0));
+        assert_eq!(f.cm, None);
+        let c = no_peito(0.0).palm_center();
+        assert_eq!(
+            f.pa.unwrap().pos,
+            Some([round(c[0]), round(c[1])]),
+            "centro {c:?}"
+        );
+        let o = f.o.unwrap();
+        assert_eq!(o.palma, Some([0.0, 0.0, 1.0]));
+        assert_eq!(o.dedos, Some([0.0, 1.0, 0.0]));
+        let m = f.m.unwrap();
+        assert_eq!((m.desloc, m.trajeto), (Some([0.0, 0.0]), Some(0.0)));
+    }
+
+    #[test]
+    fn mede_deslocamento_e_caminho() {
+        // Ida e volta: deslocamento 0,1, caminho 0,5.
+        let quadros = [0.0, 0.1, 0.2, 0.3, 0.1].map(|x| Some(no_peito(x)));
+        let m = measure(&quadros, 1.0 / 30.0).unwrap().m.unwrap();
+        assert_eq!(m.desloc, Some([0.1, 0.0]));
+        assert_eq!(m.trajeto, Some(0.5));
+    }
+
+    #[test]
+    fn mao_pouco_visivel_ou_em_repouso_nao_entra() {
+        let repouso = HandPose {
+            points: no_peito(0.0).points.map(|v| [v[0], v[1] - 1.0, v[2]]),
+            ..no_peito(0.0)
+        };
+        let q = Some(no_peito(0.0));
+        assert!(measure(&[q, None, None], 0.1).is_none());
+        assert!(measure(&[q, Some(repouso), Some(repouso)], 0.1).is_none());
+        assert!(measure(&[q, q, None], 0.1).is_some());
+        assert!(measure(&[], 0.1).is_none());
     }
 }

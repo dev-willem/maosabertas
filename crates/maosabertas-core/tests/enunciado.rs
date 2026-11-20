@@ -1,10 +1,40 @@
-//! Caminho completo com dados sinteticos: probabilidades -> enunciado -> JSON.
+//! Caminho completo com dados sinteticos: probabilidades e landmarks -> enunciado -> JSON.
 //! Os nomes do vocabulario nao sao glosas de Libras.
 
+use maosabertas_core::phonology::{self, Hands};
 use maosabertas_core::{
-    greedy_decode, segment, utterance, Ending, FrameQuality, Frames, Hysteresis, Token, Transcriber,
+    greedy_decode, segment, utterance, Ending, FrameQuality, Frames, Hysteresis, Token,
+    Transcriber, HAND_VALUES, POSE_VALUES,
 };
 use maosabertas_protocol::{ManualKind, NonManualLabel, Tier, Utterance};
+
+/// Maos de cada quadro, vindas de landmarks de imagem 1:1: ombros em x = 0,75 e 0,25,
+/// y = 0,5; so a mao direita, de brinquedo (nao e de pessoa), andando 0,005 da imagem
+/// por quadro para a direita de quem sinaliza. Quadro sem ombros nao tem referencia.
+fn maos(ombros: &[bool]) -> Vec<Hands> {
+    let nada = vec![f32::NAN; HAND_VALUES];
+    ombros
+        .iter()
+        .enumerate()
+        .map(|(i, &visto)| {
+            let mut pose = vec![if visto { 0.5 } else { f32::NAN }; POSE_VALUES];
+            pose[11 * 4] = 0.75;
+            pose[12 * 4] = 0.25;
+            let (x, y) = (0.4 - 0.005 * i as f32, 0.75);
+            let mao: Vec<f32> = (0..21_usize)
+                .flat_map(|k| match k {
+                    0 => [x, y, 0.0],
+                    _ => [
+                        x + 0.01 * ((k % 5) as f32 - 2.0),
+                        y - 0.02 * (k / 5) as f32 - 0.01,
+                        0.0,
+                    ],
+                })
+                .collect();
+            phonology::hands(&nada, &mao, &pose, 1.0).unwrap()
+        })
+        .collect()
+}
 
 fn vocab() -> Vec<Token> {
     ["<branco>", "A", "B"]
@@ -62,7 +92,8 @@ fn fluxo_gera_o_enunciado_de_referencia() {
         .map(|&(.., reference, face)| FrameQuality { reference, face })
         .collect();
 
-    let fechados = t.push(&manual, &nonmanual, &seen).unwrap();
+    let ombros: Vec<bool> = seen.iter().map(|q| q.reference).collect();
+    let fechados = t.push(&manual, &nonmanual, &seen, &maos(&ombros)).unwrap();
     assert_eq!(fechados.len(), 1, "a pausa fecha o primeiro enunciado");
     let gerado = serde_json::to_value(&fechados[0]).unwrap();
     let golden: serde_json::Value = serde_json::from_str(GOLDEN).unwrap();

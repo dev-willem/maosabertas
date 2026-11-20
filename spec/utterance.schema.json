@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://maosabertas.org/spec/0.1/utterance.schema.json",
+  "$id": "https://maosabertas.org/spec/0.2/utterance.schema.json",
   "title": "Enunciado em Libras",
-  "description": "Transcricao de um enunciado em Libras: trilhas manuais e nao manuais alinhadas no tempo. Glosa e notacao, nao traducao.",
+  "description": "Transcricao de um enunciado em Libras: trilhas manuais e nao manuais alinhadas no tempo, com os parametros fonologicos de cada item manual. Glosa e notacao, nao traducao.",
   "type": "object",
   "required": ["spec_version", "utterance_id", "t_start", "t_end", "manual"],
   "additionalProperties": false,
@@ -10,7 +10,7 @@
     "spec_version": {
       "description": "Versao da especificacao que este documento segue.",
       "type": "string",
-      "const": "0.1"
+      "const": "0.2"
     },
     "utterance_id": {
       "type": "string",
@@ -26,7 +26,7 @@
       "minimum": 0
     },
     "manual": {
-      "description": "Sinais e classificadores, em ordem de inicio. Pode ser vazio quando so ha marcacao nao manual.",
+      "description": "Sinais e classificadores, em ordem de inicio. Itens podem se sobrepor no tempo (por exemplo, um em cada mao). Pode ser vazio quando so ha marcacao nao manual.",
       "type": "array",
       "items": { "$ref": "#/$defs/manualItem" }
     },
@@ -51,6 +51,25 @@
       "minimum": 0,
       "maximum": 1
     },
+    "vec2": {
+      "description": "(x, y) no referencial do corpo: origem no meio dos ombros, unidade = largura dos ombros, x para a direita de quem sinaliza, y para cima.",
+      "type": "array",
+      "items": { "type": "number" },
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "vec3": {
+      "description": "Vetor unitario (x, y, z) no referencial do corpo; z para a frente, de quem sinaliza para a camera.",
+      "type": "array",
+      "items": { "type": "number", "minimum": -1, "maximum": 1 },
+      "minItems": 3,
+      "maxItems": 3
+    },
+    "category": {
+      "description": "Categoria fonologica. So valores do inventario publicado pela equipe linguistica (spec/README.md); enquanto ele nao existe, fica ausente.",
+      "type": "string",
+      "minLength": 1
+    },
     "manualItem": {
       "type": "object",
       "required": ["gloss", "t", "conf"],
@@ -66,9 +85,12 @@
           "enum": ["lexical", "classifier", "fingerspelling", "pointing"],
           "default": "lexical"
         },
-        "param": {
-          "description": "Parametros do classificador ou da apontacao. Chaves livres nesta versao.",
-          "type": "object"
+        "fonologia": {
+          "description": "Parametros de cada mao que articula o item. Mao ausente = nao articulou ou nao foi vista.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/handPhonology" },
+          "minItems": 1,
+          "maxItems": 2
         },
         "t": { "$ref": "#/$defs/span" },
         "conf": { "$ref": "#/$defs/confidence" },
@@ -76,6 +98,79 @@
           "description": "Alternativas plausiveis, em ordem decrescente de probabilidade. Usadas pela camada de traducao.",
           "type": "array",
           "items": { "type": "string" }
+        }
+      }
+    },
+    "handPhonology": {
+      "description": "CM, PA, O e M de uma mao no trecho do item. Cada parametro tem a medida (quando o nucleo mede) e a categoria (quando existe inventario). Nao ha landmarks crus nem descritor de forma da mao (ADR-011).",
+      "type": "object",
+      "required": ["mao"],
+      "additionalProperties": false,
+      "properties": {
+        "mao": {
+          "description": "Mao de quem sinaliza, nao lado da imagem.",
+          "type": "string",
+          "enum": ["esquerda", "direita"]
+        },
+        "visivel": {
+          "description": "Fracao dos quadros do trecho com a mao detectada no espaco de sinalizacao.",
+          "$ref": "#/$defs/confidence"
+        },
+        "cm": {
+          "description": "Configuracao de mao.",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "cat": { "$ref": "#/$defs/category" },
+            "conf": { "$ref": "#/$defs/confidence" }
+          },
+          "dependentRequired": { "conf": ["cat"] }
+        },
+        "pa": {
+          "description": "Ponto de articulacao (locacao).",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "pos": {
+              "description": "Centro da palma nos quadros de segurar do trecho (ou em todos, se nao houver segurar).",
+              "$ref": "#/$defs/vec2"
+            },
+            "prof": {
+              "description": "Reservado: profundidade para a frente, em larguras de ombro. O nucleo nao emite enquanto a medida nao for validada (ADR-011).",
+              "type": "number"
+            },
+            "cat": { "$ref": "#/$defs/category" },
+            "conf": { "$ref": "#/$defs/confidence" }
+          },
+          "dependentRequired": { "conf": ["cat"] }
+        },
+        "o": {
+          "description": "Orientacao.",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "palma": { "description": "Para onde a palma olha.", "$ref": "#/$defs/vec3" },
+            "dedos": { "description": "Do punho para a base do dedo medio.", "$ref": "#/$defs/vec3" },
+            "cat": { "$ref": "#/$defs/category" },
+            "conf": { "$ref": "#/$defs/confidence" }
+          },
+          "dependentRequired": { "conf": ["cat"] }
+        },
+        "m": {
+          "description": "Movimento do centro da palma no trecho.",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "desloc": { "description": "Do primeiro ao ultimo quadro visivel.", "$ref": "#/$defs/vec2" },
+            "trajeto": {
+              "description": "Comprimento do caminho percorrido, em larguras de ombro.",
+              "type": "number",
+              "minimum": 0
+            },
+            "cat": { "$ref": "#/$defs/category" },
+            "conf": { "$ref": "#/$defs/confidence" }
+          },
+          "dependentRequired": { "conf": ["cat"] }
         }
       }
     },
