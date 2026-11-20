@@ -36,6 +36,51 @@ pub struct FrameLandmarks<'a> {
     pub pose: &'a [f32],
 }
 
+/// Referencia do corpo num quadro: meio dos ombros e distancia entre eles, em
+/// unidades proporcionais ao pixel (x multiplicado por largura / altura).
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct Shoulders {
+    pub(crate) cx: f32,
+    pub(crate) cy: f32,
+    pub(crate) scale: f32,
+}
+
+/// `None` sem ombros detectados (NaN) ou com ombros sobrepostos.
+pub(crate) fn shoulders(pose: &[f32], aspect: f32) -> Option<Shoulders> {
+    let point = |i: usize| (pose[i * 4] * aspect, pose[i * 4 + 1]);
+    let (l, r) = (point(SHOULDERS.0), point(SHOULDERS.1));
+    let scale = (l.0 - r.0).hypot(l.1 - r.1);
+    // Tambem cobre NaN: ombros ausentes.
+    if scale.is_nan() || scale <= 1e-6 {
+        return None;
+    }
+    Some(Shoulders {
+        cx: (l.0 + r.0) / 2.0,
+        cy: (l.1 + r.1) / 2.0,
+        scale,
+    })
+}
+
+/// Cada parte com o numero de valores do layout do `.npz`.
+pub(crate) fn check_parts(parts: &[(&'static str, usize, usize)]) -> Result<(), Error> {
+    match parts.iter().find(|(_, got, expected)| got != expected) {
+        Some(&(part, got, expected)) => Err(Error::Landmarks {
+            part,
+            expected,
+            got,
+        }),
+        None => Ok(()),
+    }
+}
+
+pub(crate) fn check_aspect(aspect: f32) -> Result<(), Error> {
+    if aspect.is_finite() && aspect > 0.0 {
+        Ok(())
+    } else {
+        Err(Error::Aspect(aspect))
+    }
+}
+
 /// Coordenadas centradas no meio dos ombros e divididas pela distancia entre
 /// eles, em unidades proporcionais ao pixel (`aspect` = largura / altura da
 /// imagem). Assim a feature nao depende de onde a pessoa esta no quadro nem
@@ -44,33 +89,17 @@ pub struct FrameLandmarks<'a> {
 /// Mao ou rosto ausente vira zeros, com indicador de presenca 0. Sem ombros
 /// nao ha referencia: devolve `None`.
 pub fn frame_features(lm: &FrameLandmarks, aspect: f32) -> Result<Option<Vec<f32>>, Error> {
-    for (part, got, expected) in [
+    check_parts(&[
         ("left_hand", lm.left_hand.len(), HAND_VALUES),
         ("right_hand", lm.right_hand.len(), HAND_VALUES),
         ("face", lm.face.len(), FACE_VALUES),
         ("blendshapes", lm.blendshapes.len(), BLENDSHAPE_VALUES),
         ("pose", lm.pose.len(), POSE_VALUES),
-    ] {
-        if got != expected {
-            return Err(Error::Landmarks {
-                part,
-                expected,
-                got,
-            });
-        }
-    }
-    if !(aspect.is_finite() && aspect > 0.0) {
-        return Err(Error::Aspect(aspect));
-    }
-
-    let pose = |i: usize| (lm.pose[i * 4] * aspect, lm.pose[i * 4 + 1]);
-    let (l, r) = (pose(SHOULDERS.0), pose(SHOULDERS.1));
-    let scale = (l.0 - r.0).hypot(l.1 - r.1);
-    // Tambem cobre NaN: ombros ausentes.
-    if scale.is_nan() || scale <= 1e-6 {
+    ])?;
+    check_aspect(aspect)?;
+    let Some(Shoulders { cx, cy, scale }) = shoulders(lm.pose, aspect) else {
         return Ok(None);
-    }
-    let (cx, cy) = ((l.0 + r.0) / 2.0, (l.1 + r.1) / 2.0);
+    };
     let norm = |x: f32, y: f32| [(x * aspect - cx) / scale, (y - cy) / scale];
 
     let mut out = Vec::with_capacity(FEATURE_DIM);

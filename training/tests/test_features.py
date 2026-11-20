@@ -56,6 +56,42 @@ def test_fill_gaps_repete_ate_max_gap_e_depois_zera():
     assert np.isnan(feats).any()  # entrada intacta
 
 
+def _mao_de_brinquedo() -> np.ndarray:
+    """21 pontos sem forma de mao real; so precisam ser nao degenerados."""
+    return np.random.default_rng(0).uniform(0.3, 0.5, (21, 3)).astype(np.float32)
+
+
+def test_descritor_de_mao_nao_muda_com_translacao_e_falta_vira_nan():
+    data = _vazio(3)
+    mao = _mao_de_brinquedo()
+    data["right_hand"][0] = mao
+    data["right_hand"][1] = mao + [0.1, -0.05, 0.0]
+
+    out = ft.handshape(data, "right_hand")
+    assert out.shape == (3, ft.HANDSHAPE_DIM)
+    assert out.dtype == np.float32
+    assert np.isfinite(out[:2]).all()
+    np.testing.assert_allclose(out[1], out[0], atol=1e-4)
+    assert np.isnan(out[2]).all()
+    assert np.isnan(ft.handshape(data, "left_hand")).all()
+    with pytest.raises(ValueError, match="mao desconhecida"):
+        ft.handshape(data, "mao")
+
+
+def test_segurar_precisa_de_quadro_anterior_e_de_ombros():
+    data = _vazio(4)
+    data["pose"][:3] = 0.5
+    data["pose"][:3, 11, 0] = 0.75
+    data["pose"][:3, 12, 0] = 0.25
+    data["left_hand"][:] = _mao_de_brinquedo()
+
+    out = ft.holds(data, fps=30)
+    assert out.shape == (4, 2)
+    # Quadro 0 nao tem anterior; 1 e 2 estao parados; 3 nao tem ombros. Mao direita ausente.
+    assert out[:, 0].tolist() == [False, True, True, False]
+    assert not out[:, 1].any()
+
+
 def test_fill_gaps_sem_quadros_e_formato_errado():
     assert ft.fill_gaps(np.empty((0, ft.FEATURE_DIM), np.float32), 3).shape == (0, ft.FEATURE_DIM)
     with pytest.raises(ValueError, match="FEATURE_DIM"):

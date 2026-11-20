@@ -8,6 +8,7 @@ mod ctc;
 mod features;
 mod frames;
 mod gaps;
+pub mod phonology;
 mod scope;
 mod transcriber;
 

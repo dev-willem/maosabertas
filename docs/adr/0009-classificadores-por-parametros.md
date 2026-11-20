@@ -257,8 +257,8 @@ classe de menor amplitude provavelmente vem disso.
    inconsistência das classes 9 e 15 (seção 6.2).
 2. Medir o descritor na fonte de supervisão fraca (mesmo grupo contra
    grupos diferentes), com triagem humana dos grupos.
-3. Portar o descritor e o detector de segurar para `maosabertas-core`, com
-   testes de invariância, sem mexer nas 203 features.
+3. ~~Portar o descritor e o detector de segurar para `maosabertas-core`, com
+   testes de invariância, sem mexer nas 203 features.~~ Feito no ADR-010.
 4. Propor a v0.2 do schema só depois das decisões da seção 5.
 
 ## Alternativas consideradas
