@@ -1,0 +1,16 @@
+[package]
+name = "maosabertas-translate"
+description = "Camada de traducao do Maos Abertas: le so o protocolo e devolve portugues"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+# ureq 3.4 exige 1.85; o resto do workspace continua em 1.75.
+rust-version = "1.85"
+
+[dependencies]
+maosabertas-protocol = { path = "../maosabertas-protocol" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+# Ja estava no Cargo.lock (o ort usa para baixar binarios), com o mesmo TLS nativo.
+ureq = { version = "3.4", default-features = false, features = ["native-tls"] }

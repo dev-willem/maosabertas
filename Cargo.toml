@@ -5,6 +5,7 @@ members = [
   "crates/maosabertas-core",
   "crates/maosabertas-py",
   "crates/maosabertas-onnx",
+  "crates/maosabertas-translate",
 ]
 
 [workspace.package]
