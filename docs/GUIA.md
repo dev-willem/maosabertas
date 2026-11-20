@@ -1,8 +1,11 @@
 # Guia: como rodar, como treinar e o que falta
 
-> **Estado:** pesquisa em andamento. Ainda não existe modelo treinado, então
-> não há reconhecimento de Libras funcionando. Este guia mostra o que já roda
-> e como chegar ao primeiro modelo.
+> **Estado:** pesquisa em andamento. O caminho completo — câmera → protocolo
+> com glosa e fonologia → português — já roda (seção 3). O único modelo
+> treinado até aqui é um modelo base de poucos sinais isolados, gravados em
+> estúdio, fora do repositório; o desempenho numa webcam e a qualidade da
+> tradução nunca foram medidos. Este guia mostra o que já roda, como testar e
+> como treinar.
 
 Comandos em PowerShell, a partir da raiz do repositório.
 
@@ -111,6 +114,41 @@ $env:GLOG_minloglevel = "2"
   Numa webcam o resultado não foi medido.
 - Se a tela for mostrada em público, dê o crédito exigido pela licença da
   base de onde vêm os clipes de referência.
+
+### Do seu sinal ao protocolo e ao português
+
+O teste do sistema inteiro, pelo caminho de produção em Rust. `$E` é a pasta de
+um modelo treinado (com `model.onnx` e `experiment.json`). Os encadeamentos usam
+`cmd /c` porque o pipe e o `>` do PowerShell 5.1 estragam o UTF-8.
+
+```powershell
+$E = "D:\experimentos\base-01"
+cd training
+# Faça 2 ou 3 sinais do vocabulário do modelo, com as mãos em repouso antes e depois; Ctrl+C encerra.
+.venv\Scripts\python.exe -m maosabertas_training.landmarks 0 $HOME\teste.npz
+.venv\Scripts\python.exe -m maosabertas_training.landmarks_jsonl $HOME\teste.npz $HOME\teste.jsonl
+cd ..
+cmd /c "cargo run -q -p maosabertas-onnx --example transcrever -- $E\model.onnx $E\experiment.json %USERPROFILE%\teste.jsonl --pausa 0.5 --duracao-max 10 > %USERPROFILE%\protocolo.jsonl"
+Get-Content $HOME\protocolo.jsonl
+```
+
+- Cada linha é um enunciado com `gloss`, `nonmanual` e a `fonologia` de cada
+  mão: onde ficou (`pa.pos`), para onde a palma olha (`o.palma`), para onde e
+  quanto andou (`m.desloc`, `m.trajeto`). Conferência rápida: com a mão direita
+  bem à sua direita, `pa.pos` sai com x positivo; num movimento para baixo,
+  `m.desloc` sai com y negativo.
+- Tradução (ADR-012), com modelo local, sem nada sair da máquina:
+
+  ```powershell
+  winget install Ollama.Ollama
+  ollama pull <modelo>
+  $env:MAOSABERTAS_TRADUTOR = "local"; $env:MAOSABERTAS_TRADUTOR_MODELO = "<modelo>"
+  cmd /c "type %USERPROFILE%\protocolo.jsonl | cargo run -q -p maosabertas-translate --example traduzir"
+  ```
+
+  Pela API do Claude: `MAOSABERTAS_TRADUTOR = "claude"` e `ANTHROPIC_API_KEY`;
+  aí o enunciado sai da máquina.
+- Os arquivos em `$HOME` são dado biométrico seu: apague quando terminar.
 
 ---
 
@@ -329,13 +367,22 @@ Na câmera, o teste é a ferramenta Python da seção 3.
       avaliação deixarem a cópia em Python (marcadas com `shortcut:`).
 - [ ] **Treino do modelo não manual** (sigmoide por rótulo) no mesmo
       pipeline, quando houver anotação de marcadores.
-- [ ] **Rodar o CI** pela primeira vez no GitHub. O job de Python já instala
-      as dependências que os testes usam; localmente, tudo passa.
+- [ ] **Deixar o CI verde.** Ele roda no GitHub, mas os jobs "Rust" e
+      "Python (treino)" falham desde antes da spec v0.2, embora tudo passe no
+      Windows. Os logs exigem acesso de administrador:
+      `gh run view --log-failed` com o `gh` logado.
 
 ### Depende de pessoas, dados ou decisão
 
-- [ ] Confirmar que esquerda e direita não estão trocadas. Na câmera (seção
-      3), levante só a mão esquerda: ela precisa ficar azul.
+- [ ] **Piloto com a comunidade (próximo passo):** com pessoas surdas,
+      escolher o domínio da v1 e montar um conjunto de avaliação pequeno, com
+      consentimento, anotado e com traduções de referência de intérpretes.
+      Sem ele, nada do que vem depois pode ser medido (regra 4). Ver
+      "Como participar sem programar" no `CONTRIBUTING.md`.
+- [ ] Abrir a issue linguística do ADR-011 (inventários de CM, PA, O, M e de
+      classificadores).
+- [x] Confirmar que esquerda e direita não estão trocadas (conferido na
+      câmera em 2026-10-18).
 - [ ] Aprovar dependências: `onnxscript` (exportador ONNX novo do PyTorch; o
       atual está descontinuado) e `Pillow` (acentos na tela da câmera).
 - [ ] Tipo de cada glosa (lexical, classificador...) no registro do treino,

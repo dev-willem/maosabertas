@@ -48,6 +48,20 @@ os seguintes, e os anteriores ao primeiro quadro válido, viram zeros. O
 tempo real usa a mesma regra; o `max_gap` do treino precisa acompanhar o
 modelo exportado.
 
+## Fonologia
+
+Também do núcleo em Rust (`crates/maosabertas-core/src/phonology.rs`, ADR-010),
+para pesquisa e para o treino de classificadores de parâmetro:
+
+- `features.handshape(data, "right_hand")` — `(T, 34)`: descritor de
+  configuração de mão, invariante a rotação, escala, translação e espelho. NaN
+  onde a mão não foi detectada.
+- `features.holds(data, fps)` — `(T, 2)` bool: quadros de "segurar" (mão
+  esquerda e direita paradas em relação ao corpo, fora do repouso).
+
+Nada aqui dá nome a configuração de mão: as categorias vêm da equipe
+linguística (regra 3).
+
 ## Treino
 
 ```bash

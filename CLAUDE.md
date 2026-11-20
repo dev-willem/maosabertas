@@ -8,9 +8,11 @@ Instruções para agentes de IA que trabalham neste repositório.
 reconhecimento de **Libras** (Língua Brasileira de Sinais) em tempo real:
 vídeo → glosa com marcadores não manuais → português.
 
-Estado: **pesquisa em andamento, ainda não funciona.** Reconhecimento
-contínuo de língua de sinais é problema em aberto. O escopo da v1 é um
-domínio fechado com 150 a 300 sinais.
+Estado: **pesquisa em andamento.** O caminho câmera → protocolo (spec 0.2,
+com fonologia) → português roda, mas só com um modelo base de poucos sinais
+isolados e sem avaliação com pessoas surdas. Reconhecimento contínuo de
+língua de sinais é problema em aberto. O escopo da v1 é um domínio fechado
+com 150 a 300 sinais.
 
 ## Regras duras
 
