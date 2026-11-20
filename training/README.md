@@ -90,6 +90,21 @@ s01/0001.npz,s01,GLOSA1 GLOSA2
 do CTC; a glosa da linha `i` (sem contar linhas vazias) é a classe `i`.
 Glosa do manifesto fora do vocabulário é erro, com linha e glosa.
 
+**Base única (ADR-013):** em vez de manifesto, todas as fontes num SQLite
+fora do repositório:
+
+```bash
+python -m maosabertas_training.base importar ~/dados/base.sqlite --fonte NOME \
+    --manifesto ~/dados/corpus.csv --licenca "CC BY 4.0" [--nao-comercial]
+python -m maosabertas_training.base resumo ~/dados/base.sqlite
+python -m maosabertas_training.train --base ~/dados/base.sqlite [--fontes NOME ...] \
+    --out ~/experimentos/base-02
+```
+
+Sem `--vocab`, o vocabulário vem da base. O `experiment.json` registra as
+fontes, as licenças e `comercial: false` se alguma fonte proibir uso
+comercial.
+
 ## Regras
 
 - **Nenhum dado entra no repositório.** Caminhos de dados vêm de variável

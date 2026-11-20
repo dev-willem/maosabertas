@@ -104,6 +104,12 @@ impl Config {
             ));
         }
         let url = var("MAOSABERTAS_TRADUTOR_URL").unwrap_or_else(|| default_url.to_owned());
+        // A chave da API vai no cabecalho: so por canal cifrado.
+        if backend == Backend::Claude && !url.starts_with("https://") {
+            return Err(Error::Config(format!(
+                "o backend claude exige URL https, recebido {url:?}"
+            )));
+        }
         Ok(Self {
             backend,
             model,
@@ -191,7 +197,10 @@ impl<H: Http> Llm<H> {
             },
             "fallbacks": "default"
         });
-        let key = c.key.as_deref().unwrap_or_default();
+        let key = c
+            .key
+            .as_deref()
+            .ok_or_else(|| Error::Config("ANTHROPIC_API_KEY ausente".into()))?;
         let headers = [
             ("x-api-key", key),
             ("anthropic-version", ANTHROPIC_VERSION),
@@ -472,6 +481,18 @@ mod tests {
 
     #[test]
     fn recusa_corte_http_e_formato_viram_erro() {
+        // Config montada a mao sem chave: erro antes de qualquer requisicao.
+        let falso = Falso::new(200, json!({}));
+        let sem_chave = Config {
+            key: None,
+            ..config(Backend::Claude)
+        };
+        assert!(matches!(
+            Llm::with_http(sem_chave, &falso).translate(&enunciado()),
+            Err(Error::Config(_))
+        ));
+        assert!(falso.pedido.borrow().is_none());
+
         let claude = |stop: &str| json!({ "stop_reason": stop, "content": [] });
         assert_eq!(
             erro(Backend::Claude, 200, claude("refusal")),
@@ -560,6 +581,12 @@ mod tests {
                 ("ANTHROPIC_API_KEY", " "),
             ],
             &[("MAOSABERTAS_TRADUTOR", "local")],
+            // A chave nao viaja sem TLS.
+            &[
+                ("MAOSABERTAS_TRADUTOR", "claude"),
+                ("ANTHROPIC_API_KEY", "k"),
+                ("MAOSABERTAS_TRADUTOR_URL", "http://api.anthropic.com"),
+            ],
         ] {
             assert!(matches!(le(vars), Err(Error::Config(_))), "{vars:?}");
         }

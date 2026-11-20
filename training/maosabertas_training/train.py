@@ -2,6 +2,10 @@
 
 Uso:
     python -m maosabertas_training.train --manifest corpus.csv --vocab vocab.txt --out DIR
+    python -m maosabertas_training.train --base BASE.sqlite [--fontes F ...] --out DIR
+
+Com `--base` (ADR-013), clipes e vocabulario vem da base unica; `--vocab` e opcional e
+o experimento registra as fontes usadas, as licencas e se o modelo pode ter uso comercial.
 
 Divide por sinalizante, treina, exporta DIR/model.onnx no contrato do runtime,
 valida o ONNX contra o PyTorch, avalia o arquivo exportado nos sinalizantes de
@@ -15,6 +19,7 @@ import argparse
 import copy
 import json
 import os
+import sqlite3
 from collections.abc import Callable
 from itertools import pairwise
 from pathlib import Path
@@ -25,7 +30,8 @@ from torch import nn
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import DataLoader, Dataset
 
-from maosabertas_training.corpus import Clip, read_manifest, read_vocab, split_by_signer
+from maosabertas_training import base
+from maosabertas_training.corpus import BLANK, Clip, read_manifest, read_vocab, split_by_signer
 from maosabertas_training.evaluate import evaluate, greedy_decode
 from maosabertas_training.export import (
     ATOL,
@@ -159,11 +165,15 @@ def log_experiment(out: Path, record: dict) -> None:
         mlflow.log_artifact(str(out / "experiment.json"))
 
 
-def _features_loader(max_gap: int) -> Loader:
+def _features_loader(max_gap: int, con: sqlite3.Connection | None = None) -> Loader:
+    """Features sem lacunas de cada clipe: do `.npz` em disco ou, com `con`, da base."""
+
     def load(path: Path) -> np.ndarray:
         # Import tardio: so o loader real depende de fill_gaps.
         from maosabertas_training.features import features, fill_gaps
 
+        if con is not None:
+            return fill_gaps(features(base.carregar(con, path)), max_gap)
         with np.load(path) as data:
             return fill_gaps(features(data), max_gap)
 
@@ -173,8 +183,13 @@ def _features_loader(max_gap: int) -> Loader:
 def main(argv: list[str] | None = None, load: Loader | None = None) -> int:
     """`load` substitui o loader real (features + fill_gaps) nos testes."""
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--manifest", type=Path, required=True, help="CSV clip,signer,glosses")
-    parser.add_argument("--vocab", type=Path, required=True, help="uma glosa por linha")
+    dados = parser.add_mutually_exclusive_group(required=True)
+    dados.add_argument("--manifest", type=Path, help="CSV clip,signer,glosses")
+    dados.add_argument("--base", type=Path, help="base unica SQLite (ADR-013)")
+    parser.add_argument("--fontes", nargs="*", default=[], help="fontes da base; padrao: todas")
+    parser.add_argument(
+        "--vocab", type=Path, help="uma glosa por linha; com --base, padrao: o da base"
+    )
     parser.add_argument("--out", type=Path, required=True, help="diretorio fora do repositorio")
     parser.add_argument("--epochs", type=int, default=80)
     parser.add_argument("--batch-size", type=int, default=16)
@@ -202,19 +217,46 @@ def main(argv: list[str] | None = None, load: Loader | None = None) -> int:
     except ValueError as e:
         parser.error(str(e))
 
-    vocab = read_vocab(args.vocab)
-    train_clips, test_clips = split_by_signer(
-        read_manifest(args.manifest, vocab), args.test_fraction, args.seed, args.train_only
-    )
+    con, fontes = None, None
+    if args.base:
+        try:
+            con = base.abrir(args.base)
+            registradas = {f["nome"]: f for f in base.fontes(con)}
+            faltam = sorted(set(args.fontes) - set(registradas))
+            if faltam:
+                raise ValueError(f"fontes que a base nao tem: {', '.join(faltam)}")
+            vocab = (
+                read_vocab(args.vocab)
+                if args.vocab
+                else [BLANK, *base.vocabulario(con, args.fontes)]
+            )
+            clips = base.clipes(con, vocab, args.fontes)
+        except ValueError as e:
+            if con is not None:
+                con.close()
+            parser.error(str(e))
+        # KeyError aqui seria licenca perdida: melhor falhar que registrar errado.
+        fontes = [registradas[n] for n in sorted({c.path.parts[0] for c in clips})]
+    elif args.vocab:
+        vocab = read_vocab(args.vocab)
+        clips = read_manifest(args.manifest, vocab)
+    else:
+        parser.error("--vocab e obrigatorio com --manifest")
+    train_clips, test_clips = split_by_signer(clips, args.test_fraction, args.seed, args.train_only)
     val_clips: list[Clip] = []
     if args.val_fraction > 0:
         # A validacao sai do treino, nunca do teste: o teste fica o mesmo com ou sem ela.
         train_clips, val_clips = split_by_signer(
             train_clips, args.val_fraction, args.seed, args.train_only
         )
-    load = load or _features_loader(args.max_gap)
-    train_data, test_data = ClipDataset(train_clips, load), ClipDataset(test_clips, load)
-    val_data = ClipDataset(val_clips, load)
+    load = load or _features_loader(args.max_gap, con)
+    try:
+        train_data, test_data = ClipDataset(train_clips, load), ClipDataset(test_clips, load)
+        val_data = ClipDataset(val_clips, load)
+    finally:
+        # Os conjuntos ja estao na memoria: a base nao e mais lida.
+        if con is not None:
+            con.close()
 
     def val_ger(m: nn.Module) -> float:
         m.eval()
@@ -255,6 +297,11 @@ def main(argv: list[str] | None = None, load: Loader | None = None) -> int:
                 "classes": len(vocab),
             },
             "vocab": vocab,
+            # Modelo herda a restricao da fonte: um "nao comercial" basta.
+            "fontes": fontes,
+            "comercial": None
+            if fontes is None
+            else bool(fontes) and all(f["comercial"] for f in fontes),
             "train_signers": sorted({c.signer for c in train_clips}),
             "val_signers": sorted({c.signer for c in val_clips}),
             "test_signers": sorted({c.signer for c in test_clips}),

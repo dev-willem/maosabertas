@@ -26,7 +26,7 @@ entre os dois com facilidade.
    | Protocolo HTTP | API de mensagens da Anthropic | chat compatível com a OpenAI (Ollama, llama.cpp, vLLM) |
    | Modelo padrão | `claude-opus-5-5` | nenhum: obrigatório |
    | Formato da resposta | saída estruturada (`output_config.format`) | `response_format` com o mesmo JSON Schema |
-   | Chave | `ANTHROPIC_API_KEY` | opcional |
+   | Chave | `ANTHROPIC_API_KEY`, só por URL `https` | opcional |
    | Dado sai da máquina | sim | não |
 
    Trocar de backend é trocar uma variável; o código que chama não muda.

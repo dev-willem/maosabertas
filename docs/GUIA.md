@@ -348,6 +348,10 @@ Na câmera, o teste é a ferramenta Python da seção 3.
       hiperparâmetros do treino.
 - [x] Camada de tradução protocolo → português (ADR-012), com backend local
       ou API do Claude.
+- [x] **Base única em SQLite** (ADR-013): todas as fontes num arquivo, fora do
+      repositório, com licença e origem dos rótulos. Treino com
+      `python -m maosabertas_training.train --base BASE.sqlite --out DIR`;
+      conteúdo com `python -m maosabertas_training.base resumo BASE.sqlite`.
 - [ ] Conjunto de teste da tradução revisado por pessoas surdas e
       intérpretes, para medir a qualidade antes de qualquer afirmação.
 - [ ] Casca web (câmera no navegador) — exige aprovar dependências

@@ -190,13 +190,16 @@ impl<'a> Transcriber<'a> {
     }
 }
 
+/// shortcut: quanto o trecho medido passa do pico do CTC para cada lado, em segundos.
+/// Sem calibracao; trocar por alinhamento quando houver modelo treinado.
+const MARGIN: f64 = 0.25;
+
 /// Preenche a `fonologia` de cada item com as maos dos quadros do seu trecho.
-/// `hands[0]` e o quadro `first`; os itens estao em ordem e nao se sobrepoem.
+/// `hands[0]` e o quadro `first`; os itens estao em ordem de inicio.
 ///
-/// shortcut: o intervalo do CTC e so o pico, nao o sinal (ver `CtcDecoder`); o trecho
-/// medido vai do meio da folga com o vizinho anterior ao meio da folga com o seguinte
-/// (as bordas do enunciado contam como vizinhos). Trocar por alinhamento quando houver
-/// modelo treinado.
+/// O intervalo do CTC e so o pico, nao o sinal (ver `CtcDecoder`). O trecho medido
+/// vai alem do pico ate o meio da folga com o vizinho, sem passar de [`MARGIN`]: assim
+/// a pausa que fecha o enunciado (a mao descendo ao repouso) nao entra inteira.
 fn annotate(items: &mut [ManualItem], hands: &[Hands], first: usize, clock: &Clock) {
     let n = hands.len();
     let spans: Vec<(usize, usize)> = items
@@ -206,12 +209,16 @@ fn annotate(items: &mut [ManualItem], hands: &[Hands], first: usize, clock: &Clo
             (at(m.t[0]), at(m.t[1]))
         })
         .collect();
+    let margin = (MARGIN * clock.fps).round() as usize;
     let dt = (1.0 / clock.fps) as f32;
     for (k, item) in items.iter_mut().enumerate() {
         let (a, b) = spans[k];
         let before = k.checked_sub(1).map_or(0, |j| spans[j].1);
         let after = spans.get(k + 1).map_or(n, |s| s.0);
-        let window = &hands[(before + a) / 2..(b + after).div_ceil(2).max(b)];
+        // Os min/max mantem `lo <= a <= b <= hi <= n` mesmo com itens sobrepostos.
+        let lo = ((before + a) / 2).max(a.saturating_sub(margin)).min(a);
+        let hi = (b + after).div_ceil(2).min(b + margin).clamp(b, n);
+        let window = &hands[lo..hi];
         item.fonologia = (0..2)
             .filter_map(|side| {
                 let frames: Vec<_> = window.iter().map(|h| h[side]).collect();
@@ -549,13 +556,13 @@ mod tests {
         out.extend(t.finish());
         assert_eq!(resumo(&out).len(), 2);
 
-        // A tem o pico nos quadros 0 e 1; o trecho medido vai ate o meio da folga (quadro 3).
+        // A tem o pico nos quadros 0 e 1; a 4 fps a margem e 1 quadro: o trecho vai ate o 2.
         let [f] = out[0].manual[0].fonologia.as_slice() else {
             panic!("uma mao em A: {:?}", out[0].manual[0].fonologia);
         };
         assert_eq!((f.mao, f.visivel), (Hand::Direita, Some(1.0)));
         let m = f.m.as_ref().unwrap();
-        assert_eq!((m.desloc, m.trajeto), (Some([0.3, 0.0]), Some(0.3)));
+        assert_eq!((m.desloc, m.trajeto), (Some([0.2, 0.0]), Some(0.2)));
 
         let [g] = out[1].manual[0].fonologia.as_slice() else {
             panic!("uma mao em B");
