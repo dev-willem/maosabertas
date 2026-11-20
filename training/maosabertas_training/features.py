@@ -13,7 +13,37 @@ import maosabertas
 import numpy as np
 
 FEATURE_DIM: int = maosabertas.FEATURE_DIM
+HANDSHAPE_DIM: int = maosabertas.HANDSHAPE_DIM
 PARTS = ("left_hand", "right_hand", "face", "blendshapes", "pose")
+HANDS = ("left_hand", "right_hand")
+
+
+def _bytes(a: np.ndarray) -> bytes:
+    return np.ascontiguousarray(a, "<f4").tobytes()
+
+
+def _aspect(data: Mapping[str, np.ndarray]) -> float:
+    width, height = (float(v) for v in data["size"])
+    return width / height
+
+
+def handshape(data: Mapping[str, np.ndarray], hand: str) -> np.ndarray:
+    """Descritor de configuracao de mao do nucleo (ADR-009), (T, HANDSHAPE_DIM) float32.
+
+    `hand` e "left_hand" ou "right_hand". Quadro sem a mao sai inteiro como NaN.
+    """
+    if hand not in HANDS:
+        raise ValueError(f"mao desconhecida: {hand!r}; use {HANDS}")
+    raw = maosabertas.handshape(_bytes(data[hand]), _aspect(data))
+    return np.frombuffer(raw, "<f4").reshape(-1, HANDSHAPE_DIM).copy()
+
+
+def holds(data: Mapping[str, np.ndarray], fps: float) -> np.ndarray:
+    """Quadros de "segurar" do nucleo, (T, 2) bool: mao (esquerda, direita) parada e fora
+    do repouso desde o quadro anterior. Sem ombros ou sem a mao, False.
+    """
+    raw = maosabertas.holds(*(_bytes(data[k]) for k in (*HANDS, "pose")), _aspect(data), float(fps))
+    return np.frombuffer(raw, np.uint8).reshape(-1, 2).astype(bool)
 
 
 def features(data: Mapping[str, np.ndarray]) -> np.ndarray:

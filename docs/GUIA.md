@@ -302,6 +302,9 @@ Na câmera, o teste é a ferramenta Python da seção 3.
       janela deslizante.
 - [x] **Transcritor sem modelo não manual** (`labels` vazio).
 - [x] **Câmera local** para testar e aprender os sinais (seção 3).
+- [x] **Medição fonológica no núcleo** (ADR-010): descritor de configuração de
+      mão, centro e normal da palma, direção dos dedos e quadros de segurar, no
+      referencial do corpo. No Python: `features.handshape` e `features.holds`.
 - [ ] **Binding do `CtcDecoder` no `maosabertas-py`**, para a câmera e a
       avaliação deixarem a cópia em Python (marcadas com `shortcut:`).
 - [ ] **Treino do modelo não manual** (sigmoide por rótulo) no mesmo
