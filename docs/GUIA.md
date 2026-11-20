@@ -286,6 +286,23 @@ cargo run -q -p maosabertas-onnx --example transcrever -- `
   sinais saem como `lexical`, porque o `experiment.json` ainda não diz o
   tipo de cada glosa.
 
+**Tradução** (ADR-012): o `traduzir` lê o protocolo e só o protocolo, um
+enunciado por linha, e devolve o mesmo com `translation`. O backend é
+escolhido por variável de ambiente:
+
+```powershell
+# Local: servidor compatível com a API de chat da OpenAI (Ollama, llama.cpp, vLLM).
+$env:MAOSABERTAS_TRADUTOR = "local"
+$env:MAOSABERTAS_TRADUTOR_MODELO = "<modelo instalado no servidor>"
+# Ou a API do Claude (o enunciado sai da máquina):
+# $env:MAOSABERTAS_TRADUTOR = "claude"; $env:ANTHROPIC_API_KEY = "..."
+cargo run -q -p maosabertas-onnx --example transcrever -- ... |
+    cargo run -q -p maosabertas-translate --example traduzir
+```
+
+A qualidade da tradução ainda não foi medida: falta um conjunto de teste
+revisado por pessoas surdas (seção 5).
+
 Na câmera, o teste é a ferramenta Python da seção 3.
 
 ---
@@ -329,7 +346,10 @@ Na câmera, o teste é a ferramenta Python da seção 3.
 - [ ] Corpus com consentimento e permissão de uso.
 - [ ] Calibrar com dados: `pause`, `max_duration`, `max_gap`, histerese e
       hiperparâmetros do treino.
-- [ ] Camada de tradução glosa → português.
+- [x] Camada de tradução protocolo → português (ADR-012), com backend local
+      ou API do Claude.
+- [ ] Conjunto de teste da tradução revisado por pessoas surdas e
+      intérpretes, para medir a qualidade antes de qualquer afirmação.
 - [ ] Casca web (câmera no navegador) — exige aprovar dependências
       (TypeScript, Vite, MediaPipe Tasks, wasm-bindgen) e decidir a inferência
       no navegador (ADR-005).

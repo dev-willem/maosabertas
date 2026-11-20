@@ -222,6 +222,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "maosabertas-translate"
+version = "0.1.0"
+dependencies = [
+ "maosabertas-protocol",
+ "serde",
+ "serde_json",
+ "ureq",
+]
+
+[[package]]
 name = "matrixmultiply"
 version = "0.3.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
